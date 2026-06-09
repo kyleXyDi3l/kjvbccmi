@@ -21,6 +21,7 @@ import {
   Edit2,
   ChevronLeft,
   ChevronRight,
+  PhilippinePeso,
 } from "lucide-react";
 
 export default function TreaseurerDashBoard({ userData, session }) {
@@ -97,13 +98,13 @@ export default function TreaseurerDashBoard({ userData, session }) {
 
   // 1. Transaction Form State
   const [showFormModal, setShowFormModal] = useState(false);
-  const [amount, setAmount] = useState("");
+  //const [amount, setAmount] = useState("");
   const [transType, setTransType] = useState("Offering"); // no union type, just string
-  const [date, setDate] = useState("2026-06-01");
-  const [description, setDescription] = useState("");
-  const [churchID, setChurchID] = useState(userData.churches.id);
-  const [contributorName, setContributorName] = useState("");
-  const [contributorEmail, setContributorEmail] = useState("");
+  //const [date, setDate] = useState("2026-06-01");
+  //const [description, setDescription] = useState("");
+  //const [churchID, setChurchID] = useState(userData.churches.id);
+  //const [contributorName, setContributorName] = useState("");
+  //const [contributorEmail, setContributorEmail] = useState("");
 
   // State of creating a Finance record
   const [newFinance, setNewFinance] = useState({
@@ -262,12 +263,12 @@ export default function TreaseurerDashBoard({ userData, session }) {
     setShowFormModal(false);
 
     // Reset Form Fields
-    setAmount("");
-    setTransType("Offering");
-    setDescription("");
-    setContributorName("");
-    setContributorEmail("");
-    setEditingRecord(null);
+    //setAmount("");
+    //setTransType("Offering");
+    //setDescription("");
+    //setContributorName("");
+    //setContributorEmail("");
+    //setEditingRecord(null);
 
     setSuccessMemo(
       editingRecord
@@ -674,7 +675,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
                   <input
                     type="text"
                     readOnly
-                    value={`${userData.churches.name} Branch`}
+                    value={`${userData.churches.name} Church`}
                     className="w-full border bg-slate-100 font-bold rounded p-1 text-xs text-slate-500 focus:outline-none"
                   />
                 </div>
@@ -686,17 +687,23 @@ export default function TreaseurerDashBoard({ userData, session }) {
                     Accounting Value (₱ PH) *
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <PhilippinePeso className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                     <input
                       type="number"
                       required
                       value={newFinance.amount}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const rawValue = parseFloat(e.target.value) || 0;
+
+                        const adjustedValue =
+                          newFinance.transType === "Expense"
+                            ? -Math.abs(rawValue)
+                            : Math.abs(rawValue);
                         setNewFinance({
                           ...newFinance,
-                          amount: e.target.value,
-                        })
-                      }
+                          amount: adjustedValue,
+                        });
+                      }}
                       className="w-full pl-8 pr-3 py-2 text-xs border rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       placeholder="e.g. 5000"
                       id="fin-input-amt"
@@ -791,7 +798,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
                           })
                         }
                         className="w-full border rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                        placeholder="e.g. Junel Diel"
+                        placeholder="e.g. Kyle Diel"
                         id="fin-input-giver-name"
                       />
                     </div>
