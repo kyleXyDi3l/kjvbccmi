@@ -122,13 +122,6 @@ export default function TreaseurerDashBoard({ userData, session }) {
   // 2. Receipt Display Overlay State
   const [activeReceipt, setActiveReceipt] = useState(null);
 
-  // Filter financial ledger specifically bound back to this treasurer's extension area
-  //   const localFinances = useMemo(() => {
-  //     return finances
-  //       .filter((f) => f.extension === currentExtension)
-  //       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  //   }, [finances, currentExtension]);
-
   const totalPages = Math.ceil(finances.length / itemsPerPage);
 
   const paginatedFinances = useMemo(() => {
@@ -157,6 +150,19 @@ export default function TreaseurerDashBoard({ userData, session }) {
     };
   }, [finances]);
 
+  const resetFinance = () => {
+    setNewFinance({
+      amount: "",
+      transType: "Offering",
+      date: "",
+      description: "",
+      churchID: userData.churches.id,
+      contributorName: "",
+      receiptNumber: "",
+      createdBy: session.user.id,
+      contributorEmailAdd: "",
+    });
+  };
   // Autofill donor guidelines if selected from church member dropdown list
   const handleSelectMemberContributor = (emailVal) => {
     const match = members.find((m) => m.email === emailVal);
@@ -170,6 +176,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
   const triggerEditFinance = (record) => {
     setEditingRecord(record);
     setNewFinance({
+      id: record.id,
       amount: record.amount,
       transType: record.transType,
       date: record.date,
@@ -190,12 +197,13 @@ export default function TreaseurerDashBoard({ userData, session }) {
 
   const triggerAddFinance = () => {
     setEditingRecord(null);
-    setAmount("");
-    setTransType("Offering");
-    setDate("2026-06-01");
-    setDescription("");
-    setContributorName("");
-    setContributorEmail("");
+    resetFinance();
+    //setAmount("");
+    // setTransType("Offering");
+    // setDate("2026-06-01");
+    // setDescription("");
+    // setContributorName("");
+    // setContributorEmail("");
     setShowFormModal(true);
   };
 
@@ -210,28 +218,46 @@ export default function TreaseurerDashBoard({ userData, session }) {
       return;
     }
 
-    // Expenses represent negative cash balance values
-    const adjustedAmount =
-      newFinance.transType === "Expense" ? -numberAmount : numberAmount;
-
     // Generate specific alphanumeric Serial Confirmation
     const locPrefix = userData.churches.name.substring(0, 2).toUpperCase();
     const serialToken = editingRecord
       ? editingRecord.receiptNumber
       : `REC-${locPrefix}-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    // Build the record to insert/update
-    const financeData = {
-      ...newFinance,
-      receiptNumber: serialToken, // ✅ ensure receiptNumber is set
-    };
+    if (!editingRecord) {
+      // Expenses represent negative cash balance values
+      const adjustedAmount =
+        newFinance.transType === "Expense" ? -numberAmount : numberAmount;
 
-    const { error } = await supabase
-      .from("finances")
-      .insert({ ...financeData, createdBy: session.user.id });
-    if (error) {
-      console.error("Error adding new Member:", error.message);
-      return;
+      // Build the record to insert/update
+      const financeData = {
+        ...newFinance,
+        receiptNumber: serialToken, // ✅ ensure receiptNumber is set
+      };
+
+      const { error } = await supabase
+        .from("finances")
+        .insert({ ...financeData, createdBy: session.user.id });
+      if (error) {
+        console.error("Error adding new Member:", error.message);
+        return;
+      }
+      fetchFinances();
+    } else {
+      console.log("Updates", newFinance);
+      const { error } = await supabase
+        .from("finances")
+        .update(newFinance)
+        .eq("id", newFinance.id);
+
+      if (error) {
+        console.error("Error editing finance:", error.message);
+        return;
+      }
+      fetchFinances();
+      setSuccessMemo(
+        `Successfully updated registry files for ${newFinance.receiptNumber}.`,
+      );
     }
     setShowFormModal(false);
 
@@ -261,7 +287,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className="text-[10px] bg-sky-950 border border-sky-800 text-sky-300 font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
               <Landmark className="h-3 w-3" />
-              <span>Campus Vault Management</span>
+              <span>Church Vault Management</span>
             </span>
             <span className="text-xs text-slate-400 font-sans">
               | Localized Context:{" "}
@@ -276,7 +302,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
           </h1>
           <p className="text-xs text-slate-400 font-sans">
             File weekly Offerings, dispatch voluntary missionary donations, log
-            chapel operations, and generate official compliance receipts
+            church operations, and generate official compliance receipts
             immediately.
           </p>
         </div>
@@ -530,11 +556,11 @@ export default function TreaseurerDashBoard({ userData, session }) {
                   </span>{" "}
                   to{" "}
                   <span className="font-bold text-slate-900">
-                    {Math.min(currentPage * itemsPerPage, localFinances.length)}
+                    {Math.min(currentPage * itemsPerPage, finances.length)}
                   </span>{" "}
                   of{" "}
                   <span className="font-bold text-slate-900">
-                    {localFinances.length}
+                    {finances.length}
                   </span>{" "}
                   records
                 </p>
@@ -925,7 +951,8 @@ export default function TreaseurerDashBoard({ userData, session }) {
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2 italic">
                   A copy of this digital receipt voucher has been dispatched to{" "}
-                  {activeReceipt.contributorEmail || "registered tithing lists"}
+                  {activeReceipt.contributorEmail ||
+                    "registered offering lists"}
                   .
                 </p>
               </div>
