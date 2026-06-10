@@ -77,6 +77,11 @@ export default function SecretaryDashBoard({ userData, session }) {
   const [hasDrawnSig, setHasDrawnSig] = useState(false);
   const [isSignActive, setIsSignActive] = useState(false);
 
+  //For Search
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("joinDate");
+
   // Drawing signature pad event callbacks
   const startSignDraw = (e) => {
     const canvas = canvasRef.current;
@@ -422,12 +427,10 @@ export default function SecretaryDashBoard({ userData, session }) {
     return data.publicUrl;
   };
 
-  const totalPages = Math.ceil(members.length / itemsPerPage);
-
-  const paginatedMembers = useMemo(() => {
-    const offset = (currentPage - 1) * itemsPerPage;
-    return members.slice(offset, offset + itemsPerPage);
-  }, [members, currentPage]);
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, sortBy]);
 
   const phoneNumberChangeHandler = (e) => {
     // Remove all non-digits
@@ -457,6 +460,55 @@ export default function SecretaryDashBoard({ userData, session }) {
       setErrorMemo("");
     }
   };
+
+  const filteredMembers = useMemo(() => {
+    let filtered = [...members];
+
+    // Apply search filter
+    if (searchTerm.trim() !== "") {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((m) => {
+        // Convert phoneNumber to string safely
+        const phoneNumberStr = m.phoneNumber ? String(m.phoneNumber) : "";
+
+        return (
+          m.firstName?.toLowerCase().includes(searchLower) ||
+          m.lastName?.toLowerCase().includes(searchLower) ||
+          m.emailAdd?.toLowerCase().includes(searchLower) ||
+          m.id?.toString().toLowerCase().includes(searchLower) ||
+          phoneNumberStr.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    // Apply status filter
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((m) => m.status === statusFilter);
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "joinDate") {
+        return new Date(b.joinDate) - new Date(a.joinDate);
+      } else if (sortBy === "name") {
+        return `${a.firstName} ${a.lastName}`.localeCompare(
+          `${b.firstName} ${b.lastName}`,
+        );
+      } else if (sortBy === "status") {
+        return (a.status || "").localeCompare(b.status || "");
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [members, searchTerm, statusFilter, sortBy]);
+
+  const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+
+  const paginatedMembers = useMemo(() => {
+    const offset = (currentPage - 1) * itemsPerPage;
+    return filteredMembers.slice(offset, offset + itemsPerPage);
+  }, [filteredMembers, currentPage]);
 
   if (isDataLoading) {
     return (
@@ -650,24 +702,42 @@ export default function SecretaryDashBoard({ userData, session }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, email, or ID..."
+                  placeholder="Search by name, email, ID, or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-slate-50 hover:bg-white transition"
                 />
               </div>
               <div className="flex gap-2">
-                <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer">
-                  <option>All Status</option>
-                  <option>Active</option>
-                  <option>Inactive</option>
-                  <option>Pending</option>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer"
+                >
+                  <option value="All">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Outreach">Outreach</option>
                 </select>
-                <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer">
-                  <option>Sort by: Join Date</option>
-                  <option>Sort by: Name</option>
-                  <option>Sort by: Status</option>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer"
+                >
+                  <option value="joinDate">Sort by: Join Date (Newest)</option>
+                  <option value="name">Sort by: Name (A-Z)</option>
+                  <option value="status">Sort by: Status</option>
                 </select>
               </div>
             </div>
+
+            {/* Optional: Show search results count */}
+            {searchTerm && (
+              <div className="mt-2 text-xs text-slate-500">
+                Found {filteredMembers.length} result
+                {filteredMembers.length !== 1 ? "s" : ""} for "{searchTerm}"
+              </div>
+            )}
           </div>
 
           {/* Members Table - Premium Design */}
@@ -685,7 +755,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedMembers.length === 0 ? (
+                {filteredMembers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-3">
@@ -693,19 +763,19 @@ export default function SecretaryDashBoard({ userData, session }) {
                           <Users className="h-8 w-8 text-slate-300" />
                         </div>
                         <p className="text-sm text-slate-400 italic font-sans">
-                          No members registered under the{" "}
-                          <span className="font-bold text-slate-600">
-                            {userData?.churches?.name || "Naga"}
-                          </span>{" "}
-                          chapel database.
+                          {searchTerm
+                            ? `No members found matching "${searchTerm}"`
+                            : `No members registered under the ${userData?.churches?.name || "Naga"} chapel database.`}
                         </p>
-                        <button
-                          onClick={triggerAddMember}
-                          className="mt-2 text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          Add your first member
-                        </button>
+                        {!searchTerm && (
+                          <button
+                            onClick={triggerAddMember}
+                            className="mt-2 text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                            Add your first member
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -798,7 +868,6 @@ export default function SecretaryDashBoard({ userData, session }) {
                           <button
                             onClick={() => setSelectedIdMember(m)}
                             className="group/print inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer shadow-sm hover:shadow"
-                            id={`print-id-btn-${m.id}`}
                             title="Generate & View Printable Member ID"
                           >
                             <Printer className="h-3 w-3 group-hover/print:scale-110 transition-transform" />
@@ -812,7 +881,6 @@ export default function SecretaryDashBoard({ userData, session }) {
                               })
                             }
                             className="group/edit inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-800 text-slate-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer"
-                            id={`edit-btn-${m.id}`}
                           >
                             <Edit2 className="h-3 w-3 group-hover/edit:scale-110 transition-transform" />
                             <span>Edit</span>
@@ -841,13 +909,19 @@ export default function SecretaryDashBoard({ userData, session }) {
                     </span>{" "}
                     to{" "}
                     <span className="font-extrabold text-slate-900">
-                      {Math.min(currentPage * itemsPerPage, members.length)}
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        filteredMembers.length,
+                      )}
                     </span>{" "}
                     of{" "}
                     <span className="font-extrabold text-indigo-600">
-                      {members.length}
+                      {filteredMembers.length}
                     </span>{" "}
                     registered members
+                    {searchTerm && (
+                      <span className="text-slate-400"> (filtered)</span>
+                    )}
                   </p>
                 </div>
 

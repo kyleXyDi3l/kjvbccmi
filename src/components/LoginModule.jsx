@@ -43,6 +43,11 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
 
+  //For Search
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("joinDate");
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
