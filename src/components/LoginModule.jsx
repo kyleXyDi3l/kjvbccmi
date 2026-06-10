@@ -45,12 +45,11 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
-    setSuccess(""); // Clear previous success messages
+    setError("");
+    setSuccess("");
     setIsLoading(true);
 
     if (isSignUp) {
-      // Sign Up
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -59,7 +58,6 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
       if (signUpError) {
         console.error("Error signing up:", signUpError.message);
 
-        // Format user-friendly error messages
         if (signUpError.message.includes("User already registered")) {
           setError("This email is already registered. Please sign in instead.");
         } else if (
@@ -79,7 +77,6 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
         data.user.identities &&
         data.user.identities.length === 0
       ) {
-        // User already exists but not confirmed
         setError("An account with this email already exists. Please sign in.");
         setIsLoading(false);
       } else {
@@ -89,14 +86,13 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
         );
         setTimeout(() => {
           setSuccess("");
-          setIsSignUp(false); // Switch to login mode
+          setIsSignUp(false);
           setEmail("");
           setPassword("");
         }, 3000);
         setIsLoading(false);
       }
     } else {
-      // Sign In
       const { data, error: signInError } =
         await supabase.auth.signInWithPassword({
           email,
@@ -106,7 +102,6 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
       if (signInError) {
         console.error("Error signing in:", signInError.message);
 
-        // Format user-friendly error messages
         if (signInError.message.includes("Invalid login credentials")) {
           setError("Invalid email or password. Please try again.");
         } else if (signInError.message.includes("Email not confirmed")) {
@@ -163,18 +158,19 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-4xl w-full border border-slate-200 flex flex-col md:flex-row relative animate-in zoom-in-95 duration-300">
-        {/* Close Button - Premium */}
+        {/* Close Button - Improved for mobile devices */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all duration-200 hover:scale-105"
+          className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2.5 md:p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all duration-200 hover:scale-105 active:scale-95"
           aria-label="Close"
+          style={{ minWidth: "44px", minHeight: "44px" }} // Better touch target for mobile
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5 md:h-4 md:w-4" />
         </button>
 
-        {/* Left Panel - Visual Identity Side Banner - Premium Design */}
-        <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-8 flex flex-col justify-between md:w-5/12 overflow-hidden">
+        {/* Left Panel - Hidden on mobile, shown on tablet/desktop */}
+        <div className="hidden md:flex relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-8 flex-col justify-between md:w-5/12 overflow-hidden">
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -226,13 +222,32 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
           </div>
         </div>
 
-        {/* Right Panel - Form Area - Premium Design */}
-        <div className="p-8 md:w-7/12 bg-white">
+        {/* Mobile Header - Only visible on mobile devices */}
+        <div className="md:hidden bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
+              <Shield className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-mono font-bold tracking-wider text-xs text-white">
+              SECURE GATEWAY
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <img
+              src={logo}
+              alt="Church Logo"
+              className="h-8 w-8 object-contain"
+            />
+          </div>
+        </div>
+
+        {/* Right Panel - Form Area - Full width on mobile */}
+        <div className="p-6 md:p-8 w-full md:w-7/12 bg-white">
           <div className="mb-6">
-            <h2 className="text-2xl font-sans font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl md:text-2xl font-sans font-black text-slate-900 tracking-tight">
               {isSignUp ? "Create Account" : "Welcome Back"}
             </h2>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-xs md:text-sm text-slate-500 mt-1">
               {isSignUp
                 ? "Join your church community and access spiritual resources"
                 : "Sign in to access your church management dashboard"}
@@ -244,11 +259,12 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
             <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 animate-in slide-in-from-top duration-200">
               <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-xs md:text-sm text-red-700">{error}</p>
               </div>
               <button
                 onClick={() => setError("")}
-                className="text-red-500 hover:text-red-700"
+                className="text-red-500 hover:text-red-700 p-1"
+                style={{ minWidth: "32px", minHeight: "32px" }}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -260,11 +276,12 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
             <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 animate-in slide-in-from-top duration-200">
               <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-emerald-700">{success}</p>
+                <p className="text-xs md:text-sm text-emerald-700">{success}</p>
               </div>
               <button
                 onClick={() => setSuccess("")}
-                className="text-emerald-500 hover:text-emerald-700"
+                className="text-emerald-500 hover:text-emerald-700 p-1"
+                style={{ minWidth: "32px", minHeight: "32px" }}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -274,8 +291,8 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
-                <Mail className="h-3.5 w-3.5" />
+              <label className="block text-[10px] md:text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                <Mail className="h-3 w-3 md:h-3.5 md:w-3.5" />
                 Email Address
                 <span className="text-rose-500">*</span>
               </label>
@@ -287,7 +304,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
-                    setError(""); // Clear error when user starts typing
+                    setError("");
                   }}
                   className="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                   placeholder="name@church.org"
@@ -298,8 +315,8 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
 
             {/* Password Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
-                <Lock className="h-3.5 w-3.5" />
+              <label className="block text-[10px] md:text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                <Lock className="h-3 w-3 md:h-3.5 md:w-3.5" />
                 Security Password
                 <span className="text-rose-500">*</span>
               </label>
@@ -311,7 +328,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    setError(""); // Clear error when user starts typing
+                    setError("");
                   }}
                   className="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                   placeholder="••••••••"
@@ -320,7 +337,8 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1"
+                  style={{ minWidth: "32px", minHeight: "32px" }}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -337,7 +355,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold transition"
+                  className="text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold transition"
                 >
                   Forgot password?
                 </button>
@@ -389,7 +407,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
 
           {/* Footer Note */}
           <div className="mt-6 pt-4 border-t border-slate-100">
-            <p className="text-[9px] text-slate-400 text-center font-mono">
+            <p className="text-[8px] md:text-[9px] text-slate-400 text-center font-mono">
               By continuing, you agree to our Terms of Service and Privacy
               Policy. All data is encrypted in transit and at rest.
             </p>
@@ -397,22 +415,23 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* Forgot Password Modal - Improved for mobile */}
       {showForgotPassword && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 md:p-6 mx-4 animate-in zoom-in-95 duration-300">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
                   <Key className="h-4 w-4 text-white" />
                 </div>
-                <h3 className="font-sans font-bold text-slate-900">
+                <h3 className="font-sans font-bold text-slate-900 text-base md:text-lg">
                   Reset Password
                 </h3>
               </div>
               <button
                 onClick={() => setShowForgotPassword(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 transition"
+                className="p-2 rounded-lg hover:bg-slate-100 transition"
+                style={{ minWidth: "40px", minHeight: "40px" }}
               >
                 <X className="h-4 w-4 text-slate-400" />
               </button>
@@ -422,7 +441,9 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
             {resetError && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-red-600" />
-                <span className="text-sm text-red-700">{resetError}</span>
+                <span className="text-xs md:text-sm text-red-700">
+                  {resetError}
+                </span>
               </div>
             )}
 
@@ -430,7 +451,9 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
             {resetSuccess && (
               <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-600" />
-                <span className="text-sm text-emerald-700">{resetSuccess}</span>
+                <span className="text-xs md:text-sm text-emerald-700">
+                  {resetSuccess}
+                </span>
               </div>
             )}
 
@@ -443,22 +466,22 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
               value={resetEmail}
               onChange={(e) => {
                 setResetEmail(e.target.value);
-                setResetError(""); // Clear error when user starts typing
+                setResetError("");
               }}
               placeholder="Enter your email"
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none mb-4"
             />
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowForgotPassword(false)}
-                className="flex-1 py-2 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition"
+                className="flex-1 py-2 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition order-2 sm:order-1"
               >
                 Cancel
               </button>
               <button
                 onClick={handleForgotPassword}
                 disabled={isResetting}
-                className="flex-1 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-50"
+                className="flex-1 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-50 order-1 sm:order-2"
               >
                 {isResetting ? "Sending..." : "Send Reset Link"}
               </button>
