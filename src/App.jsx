@@ -652,7 +652,7 @@ export default function App() {
                           </span>
                           <span className="text-[9px] font-semibold px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 flex items-center gap-1">
                             <MapPin className="h-2.5 w-2.5" />
-                            {userData.churches.name || " "} Extension
+                            {userData?.churches?.name || " "} Extension
                           </span>
                         </div>
                       </div>

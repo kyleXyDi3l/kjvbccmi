@@ -324,7 +324,7 @@ export default function UserProfileDashboard({
                     {userRole || "Member"} Officer
                   </span>
                   <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-sans">
-                    {newChurchName || "Naga"} Chapel
+                    {newChurchName || " "} Chapel
                   </span>
                 </div>
               </div>
