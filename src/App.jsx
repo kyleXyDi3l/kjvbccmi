@@ -6,6 +6,7 @@ import UserProfileDashboard from "./components/UserProfileDashboard";
 import SecretaryDashBoard from "./components/SecretaryDashBoard";
 import TreaseurerDashBoard from "./components/TreasurerDashBoard";
 import SermonDashBoard from "./components/SermonDashBoard";
+import UserDashBoard from "./components/UserDashBoard";
 import EventAndRegDashBoard from "./components/EventAndRegDashBoard";
 import { supabase } from "./supabase-client";
 import { ChurchLocation } from "./constant/frozenTypes";
@@ -560,7 +561,12 @@ export default function App() {
                 >
                   <div className="flex items-center gap-2">
                     <LayoutDashboard className="h-4 w-4" />
-                    <span>Admin Desk</span>
+                    <span>
+                        {userRole === "Admin" && "Admin Desk"}
+                        {userRole === "Secretary" && "Secretary Desk"}
+                        {userRole === "Treasurer" && "Treasurer Desk"}
+                        {userRole === "User" && "Member Desk"}
+                    </span>
                     <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
                   {activeMenu === "Dashboard" && (
@@ -1500,6 +1506,13 @@ export default function App() {
                 {userRole === "Treasurer" && (
                   <TreaseurerDashBoard userData={userData} session={session} />
                 )}
+                {userRole === "User" && (
+                    <UserDashBoard 
+                      userData={userData} 
+                      session={session} 
+                      onLogout={hadleLogOut}
+                    />
+                  )}
               </div>
             )}
           </div>
