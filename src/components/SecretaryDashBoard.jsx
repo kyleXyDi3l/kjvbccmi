@@ -12,7 +12,6 @@ import {
   Upload,
   FileVideo,
   FileImage,
-  ShieldCheck,
   Mail,
   Phone,
   CalendarDays,
@@ -21,6 +20,15 @@ import {
   Printer,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
+  Search,
+  Shield,
+  X,
+  PenTool,
+  User,
+  MapPin,
+  FileText,
+  Image,
 } from "lucide-react";
 
 const MOCK_AVATAR_PRESETS = [
@@ -45,6 +53,10 @@ const MOCK_AVATAR_PRESETS = [
 export default function SecretaryDashBoard({ userData, session }) {
   const [activeTab, setActiveTab] = useState("registry");
   const [successMemo, setSuccessMemo] = useState("");
+  const [errorMemo, setErrorMemo] = useState("");
+
+  //Loading State
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   // 1. Managing Active/Edit Member Form State
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -210,7 +222,9 @@ export default function SecretaryDashBoard({ userData, session }) {
         (payload) => {
           const deletedMemberId = payload.old;
           setMembers((prevMembers) =>
-            prevPosts.filter((posts) => posts.id !== deletedMemberId.id),
+            prevMembers.filter(
+              (prevMembers) => prevMembers.id !== deletedMemberId.id,
+            ),
           );
         },
       )
@@ -228,16 +242,19 @@ export default function SecretaryDashBoard({ userData, session }) {
 
   const fetchMembers = async () => {
     console.log("fetching members");
+    setIsDataLoading(true);
     const { data, error } = await supabase
       .from("members")
       .select(`*, churches(id, name)`)
       .order("created_at", { ascending: false });
+
     if (error) {
       console.error("Error fetching members:", error.message);
-      return;
+    } else {
+      setMembers(data);
+      console.log("Fetched members:", data);
     }
-    setMembers(data);
-    console.log("Fetched members:", data);
+    setIsDataLoading(false);
   };
 
   const triggerAddMember = () => {
@@ -428,64 +445,149 @@ export default function SecretaryDashBoard({ userData, session }) {
 
     setNewMember({
       ...newMember,
-      digits,
+      phoneNumber: digits,
     });
     // setPhoneNumber();
 
     // Validation: must be exactly 11 digits (ignoring dashes)
     const plainDigits = digits.replace(/-/g, "");
     if (plainDigits.length !== 11) {
-      setErrorMsg("Phone number must be exactly 11 digits.");
+      setErrorMemo("Phone number must be exactly 11 digits.");
     } else {
-      setErrorMsg("");
+      setErrorMemo("");
     }
   };
+
+  if (isDataLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent mx-auto mb-3"></div>
+          <p className="text-slate-500 text-sm">Loading registry data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" id="secretary-dashboard-view">
       {/* Header Info */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" />
-              <span>Location Clerk Authority</span>
-            </span>
-            <span className="text-xs text-slate-400 font-sans">
-              | Localized Context:{" "}
-              <strong>
-                {/* {currentExtension}  */}
-                Extension
-              </strong>{" "}
-              Only
-            </span>
-          </div>
-          <h1 className="text-2xl font-sans font-bold tracking-tight">
-            Registry & Event Scheduler Workspace
-          </h1>
-          <p className="text-xs text-slate-400 font-sans">
-            Add/edit local member profiles, coordinate local ministry cohorts,
-            and publish calendar updates with interactive media.
-          </p>
+      <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950/30 text-white rounded-2xl p-6 md:p-8 border border-slate-700/50 overflow-hidden shadow-xl">
+        {/* Background Decorative Elements */}
+        <div className="absolute inset-0 opacity-5 pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-emerald-500 blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-sky-500 blur-3xl" />
         </div>
 
-        {/* View Toggle tabs */}
-        <div className="bg-slate-800 p-1 rounded-lg flex gap-1 border border-slate-700 shrink-0">
-          <button
-            onClick={() => setActiveTab("registry")}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold font-sans tracking-wide transition ${activeTab === "registry" ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-white"}`}
-          >
-            Member Files
-            {/* ({filteredMembers.length}) */}
-          </button>
-          <button
-            //onClick={() => setActiveTab("scheduler")}
-            className={`px-4 py-1.5 rounded-md text-xs font-semibold font-sans tracking-wide transition ${activeTab === "scheduler" ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-white"}`}
-            id="scheduler-tab-btn"
-          >
-            Calendar Events
-            {/* ({filteredEvents.length}) */}
-          </button>
+        <div className="absolute right-0 top-0 opacity-5 pointer-events-none select-none">
+          <ShieldCheck className="h-64 w-64 translate-x-20 -translate-y-10" />
+        </div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {/* Left Content */}
+          <div className="flex-1 space-y-3">
+            {/* Badge Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-300 font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
+                  <ShieldCheck className="h-3 w-3" />
+                  <span>Location Clerk Authority</span>
+                </span>
+              </div>
+              <div className="h-3 w-px bg-slate-600 hidden sm:block" />
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-sans">
+                  Localized Context:
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                  {userData.churches.name || ""} Extension Only
+                </span>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-2xl md:text-3xl font-sans font-extrabold tracking-tight">
+              Registry &{" "}
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                Event Scheduler Workspace
+              </span>
+            </h1>
+
+            {/* Description */}
+            <p className="text-sm text-slate-400 font-sans leading-relaxed max-w-2xl">
+              Add/edit local member profiles, coordinate local ministry cohorts,
+              and publish calendar updates with interactive media.
+            </p>
+
+            {/* Quick Stats */}
+            <div className="flex flex-wrap gap-4 pt-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+                <span className="text-[10px] text-slate-300">Live Sync</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center">
+                  <Users className="h-3 w-3 text-teal-400" />
+                </div>
+                <span className="text-[10px] text-slate-300">
+                  Member Management
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center">
+                  <Calendar className="h-3 w-3 text-sky-400" />
+                </div>
+                <span className="text-[10px] text-slate-300">
+                  Event Planning
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* View Toggle Tabs - Redesigned */}
+          <div className="relative">
+            {/* Glow behind tabs */}
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-xl blur-xl opacity-50" />
+
+            <div className="relative bg-slate-800/50 backdrop-blur-sm p-1 rounded-xl flex gap-1 border border-slate-700/50 shrink-0">
+              <button
+                onClick={() => setActiveTab("registry")}
+                className={`group relative px-5 py-2.5 rounded-lg text-xs font-bold font-sans tracking-wide transition-all duration-200 flex items-center gap-2 ${
+                  activeTab === "registry"
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25"
+                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                }`}
+              >
+                <Users
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${activeTab === "registry" ? "scale-110" : ""}`}
+                />
+                <span>Member Files</span>
+                {activeTab === "registry" && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                )}
+              </button>
+
+              <button
+                //onClick={() => setActiveTab("scheduler")}
+                className={`group relative px-5 py-2.5 rounded-lg text-xs font-bold font-sans tracking-wide transition-all duration-200 flex items-center gap-2 ${
+                  activeTab === "scheduler"
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25"
+                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                }`}
+                id="scheduler-tab-btn"
+              >
+                <Calendar
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${activeTab === "scheduler" ? "scale-110" : ""}`}
+                />
+                <span>Calendar Events</span>
+                {activeTab === "scheduler" && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -502,136 +604,218 @@ export default function SecretaryDashBoard({ userData, session }) {
       {/* VIEW PANEL 1: MEMBERS REGISTRY FILE MANAGER */}
       {activeTab === "registry" && (
         <div
-          className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4"
+          className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
           id="member-registry-panel"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-sans font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                <Users className="h-4.5 w-4.5 text-indigo-600" />
-                <span>Congregation Registry (Secure Mode)</span>
-              </h2>
-              <p className="text-[11px] text-slate-500 font-sans">
-                Clerks are authorized to alter records strictly within the
-                bounds of the {userData.churches.name} Church.
-              </p>
-            </div>
+          {/* Header Section - Premium */}
+          <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-5 border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+                    <Users className="h-4 w-4 text-white" />
+                  </div>
+                  <h2 className="text-sm font-sans font-extrabold text-slate-800 uppercase tracking-wider">
+                    Congregation Registry
+                  </h2>
+                  <span className="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-mono font-bold">
+                    SECURE MODE
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-sans ml-10">
+                  Clerks are authorized to alter records strictly within the
+                  bounds of the{" "}
+                  <span className="font-bold text-indigo-600">
+                    {userData?.churches?.name || "Naga"}
+                  </span>{" "}
+                  Church.
+                </p>
+              </div>
 
-            <button
-              onClick={triggerAddMember}
-              id="add-member-trigger"
-              className="bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-3.5 py-1.8 rounded-lg transition shrink-0 flex items-center gap-1.5 shadow"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Add Member Profile</span>
-            </button>
+              <button
+                onClick={triggerAddMember}
+                id="add-member-trigger"
+                className="group bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all duration-200 shrink-0 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <UserPlus className="h-4 w-4 group-hover:rotate-12 transition-transform" />
+                <span>Add Member Profile</span>
+              </button>
+            </div>
           </div>
 
-          {/* Members Desktop List */}
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          {/* Search and Filter Bar */}
+          <div className="px-6 pt-4 pb-2 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or ID..."
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-slate-50 hover:bg-white transition"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer">
+                  <option>All Status</option>
+                  <option>Active</option>
+                  <option>Inactive</option>
+                  <option>Pending</option>
+                </select>
+                <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer">
+                  <option>Sort by: Join Date</option>
+                  <option>Sort by: Name</option>
+                  <option>Sort by: Status</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Members Table - Premium Design */}
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 font-mono font-semibold border-b border-slate-200">
-                  <th className="p-3">Ref ID</th>
-                  <th className="p-3">Name</th>
-                  <th className="p-3">Email Address</th>
-                  <th className="p-3">Phone</th>
-                  <th className="p-3">Birthday</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Membership Dates</th>
-                  <th className="p-3 text-right">Actions</th>
+                <tr className="bg-gradient-to-r from-slate-100 to-slate-50 text-slate-600 font-mono font-bold uppercase tracking-wider border-b-2 border-slate-200">
+                  <th className="p-4">Ref ID</th>
+                  <th className="p-4">Member</th>
+                  <th className="p-4">Contact Information</th>
+                  <th className="p-4">Birthday</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Joined</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {/* filteredMembers.length */}
-                {paginatedMembers === 0 ? (
+                {paginatedMembers.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="p-8 text-center text-slate-400 italic font-sans"
-                    >
-                      No members registered under the
-                      {userData.churches.name}
-                      chapel database.
+                    <td colSpan={7} className="p-12 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center">
+                          <Users className="h-8 w-8 text-slate-300" />
+                        </div>
+                        <p className="text-sm text-slate-400 italic font-sans">
+                          No members registered under the{" "}
+                          <span className="font-bold text-slate-600">
+                            {userData?.churches?.name || "Naga"}
+                          </span>{" "}
+                          chapel database.
+                        </p>
+                        <button
+                          onClick={triggerAddMember}
+                          className="mt-2 text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Add your first member
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  paginatedMembers.map((m) => (
+                  paginatedMembers.map((m, idx) => (
                     <tr
                       key={m.id}
-                      className="hover:bg-slate-50 text-slate-700 select-none"
+                      className="hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-transparent transition-all duration-200 group"
                     >
-                      <td className="p-3 font-mono text-[10px] text-slate-500">
-                        {m.id}
+                      <td className="p-4">
+                        <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">
+                          {m.id}
+                        </span>
                       </td>
-                      <td className="p-3 font-semibold font-sans">
-                        <div className="flex items-center gap-2">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
                           {m.profilePic ? (
                             <img
                               src={m.profilePic}
                               alt={`${m.firstName}`}
-                              className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-200"
+                              className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-md"
                               referrerPolicy="no-referrer"
                             />
                           ) : (
-                            <div className="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 text-[10px] text-indigo-700 font-bold">
-                              {m.firstName[0]}
-                              {m.lastName[0]}
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
+                              {m.firstName?.[0] || "U"}
+                              {m.lastName?.[0] || "s"}
                             </div>
                           )}
-                          <span>
-                            {m.firstName} {m.lastName}
+                          <div>
+                            <div className="font-bold text-slate-800">
+                              {m.firstName} {m.lastName}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {m.emailAdd}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="h-3 w-3 text-slate-400" />
+                          <span className="font-mono text-[11px] text-slate-600">
+                            {m.phoneNumber || "N/A"}
                           </span>
                         </div>
                       </td>
-                      <td className="p-3 font-sans font-medium">
-                        {m.emailAdd}
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span className="font-mono text-[11px] text-slate-600">
+                            {m.birthDate || "Not set"}
+                          </span>
+                        </div>
                       </td>
-                      <td className="p-3 font-mono text-[11px]">
-                        {m.phoneNumber || "N/A"}
-                      </td>
-                      <td className="p-3 font-mono text-[11px]">
-                        {m.birthDate}
-                      </td>
-                      <td className="p-3">
+                      <td className="p-4">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold font-mono uppercase border ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold font-mono uppercase shadow-sm ${
                             m.status === "Active"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               : m.status === "Inactive"
-                                ? "bg-rose-50 text-rose-700 border-rose-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
                           }`}
                         >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              m.status === "Active"
+                                ? "bg-emerald-500 animate-pulse"
+                                : m.status === "Inactive"
+                                  ? "bg-rose-500"
+                                  : "bg-amber-500"
+                            }`}
+                          />
                           {m.status}
                         </span>
                       </td>
-                      <td className="p-3 text-[11px] font-sans">
-                        Joined: {m.joinDate}
+                      <td className="p-4">
+                        <div className="text-[11px] font-sans">
+                          <div className="font-semibold text-slate-700">
+                            {m.joinDate}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            Member since
+                          </div>
+                        </div>
                       </td>
-                      <td className="p-3 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setSelectedIdMember(m)}
-                            className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 transition px-2.5 py-1.5 rounded text-[11px] font-bold cursor-pointer"
+                            className="group/print inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer shadow-sm hover:shadow"
                             id={`print-id-btn-${m.id}`}
                             title="Generate & View Printable Member ID"
                           >
-                            <Printer className="h-3.5 w-3.5" />
-                            <span>Printable ID</span>
+                            <Printer className="h-3 w-3 group-hover/print:scale-110 transition-transform" />
+                            <span>ID Card</span>
                           </button>
                           <button
                             onClick={() =>
                               triggerEditMember({
                                 ...m,
-                                churchName: userData.churches.name,
+                                churchName: userData?.churches?.name,
                               })
                             }
-                            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-900 hover:text-white transition px-2.5 py-1.5 rounded text-[11px] font-semibold text-slate-700"
+                            className="group/edit inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-800 text-slate-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer"
                             id={`edit-btn-${m.id}`}
                           >
-                            <Edit2 className="h-3 w-3" />
-                            <span>Edit Info</span>
+                            <Edit2 className="h-3 w-3 group-hover/edit:scale-110 transition-transform" />
+                            <span>Edit</span>
                           </button>
                         </div>
                       </td>
@@ -642,91 +826,87 @@ export default function SecretaryDashBoard({ userData, session }) {
             </table>
           </div>
 
-          {/* Pagination Controls */}
+          {/* Pagination Controls - Premium Design */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-xl shadow-xs">
-              <div className="flex flex-1 justify-between sm:hidden">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-750 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-750 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs text-slate-650 font-sans">
+            <div className="border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Users className="h-3.5 w-3.5 text-indigo-600" />
+                  </div>
+                  <p className="text-xs text-slate-600 font-sans">
                     Showing{" "}
-                    <span className="font-bold text-slate-900">
+                    <span className="font-extrabold text-slate-900">
                       {(currentPage - 1) * itemsPerPage + 1}
                     </span>{" "}
                     to{" "}
-                    <span className="font-bold text-slate-900">
+                    <span className="font-extrabold text-slate-900">
                       {Math.min(currentPage * itemsPerPage, members.length)}
                     </span>{" "}
                     of{" "}
-                    <span className="font-bold text-slate-900">
+                    <span className="font-extrabold text-indigo-600">
                       {members.length}
                     </span>{" "}
-                    members
+                    registered members
                   </p>
                 </div>
-                <div>
-                  <nav
-                    className="isolate inline-flex -space-x-px rounded-md shadow-2xs"
-                    aria-label="Pagination"
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(prev - 1, 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-xl px-3 py-2 text-slate-600 border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 focus:z-20 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                   >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(prev - 1, 1))
-                      }
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 border border-slate-300 bg-white hover:bg-slate-50 focus:z-20 disabled:opacity-50 cursor-pointer text-xs"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                      (page) => (
-                        <button
-                          key={page}
-                          type="button"
-                          onClick={() => setCurrentPage(page)}
-                          className={`relative z-10 inline-flex items-center px-3 py-2 text-xs font-bold focus:z-20 border ${
-                            currentPage === page
-                              ? "bg-indigo-600 text-white border-indigo-600 focus-visible:outline-indigo-600"
-                              : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                          } cursor-pointer`}
-                        >
-                          {page}
-                        </button>
-                      ),
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                      }
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 border border-slate-300 bg-white hover:bg-slate-50 focus:z-20 disabled:opacity-50 cursor-pointer text-xs"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </nav>
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="ml-1 text-xs font-medium hidden sm:inline">
+                      Previous
+                    </span>
+                  </button>
+
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                          currentPage === pageNum
+                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 scale-105"
+                            : "bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300"
+                        } cursor-pointer`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-xl px-3 py-2 text-slate-600 border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 focus:z-20 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    <span className="mr-1 text-xs font-medium hidden sm:inline">
+                      Next
+                    </span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -833,133 +1013,177 @@ export default function SecretaryDashBoard({ userData, session }) {
       {/* MEMBER REGISTRATION DIALOG MODAL (Add & Edit) */}
       {showMemberModal && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto"
+          className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-200"
           id="member-profile-modal"
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 flex flex-col my-8">
-            <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-              <div>
-                <span className="text-[9px] font-mono uppercase bg-emerald-900 text-emerald-200 px-2 py-0.5 rounded block w-fit mb-1 font-bold">
-                  DATABASE TRANSACTION
-                </span>
-                <h3 className="font-sans font-semibold text-sm">
-                  {editingMember
-                    ? `Registry Update: ${newMember.firstName} ${newMember.lastName}`
-                    : "Add New Member Profile Record"}
-                </h3>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col my-8 animate-in zoom-in-95 duration-300">
+            {/* Header - Premium Design */}
+            <div className="relative bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-5">
+              {/* Decorative Elements */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex justify-between items-start relative z-10">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 backdrop-blur-sm px-2.5 py-1 rounded-full mb-2 border border-emerald-500/30">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[8px] font-mono uppercase font-bold text-emerald-300 tracking-wider">
+                      DATABASE TRANSACTION
+                    </span>
+                  </div>
+                  <h3 className="font-sans font-bold text-white text-lg tracking-tight">
+                    {editingMember
+                      ? `Update Profile: ${newMember.firstName || ""} ${newMember.lastName || ""}`
+                      : "Add New Member Profile Record"}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {editingMember
+                      ? "Edit member information securely"
+                      : "Register a new member to the congregation"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowMemberModal(false)}
+                  className="p-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-all duration-200"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setShowMemberModal(false)}
-                className="text-slate-400 hover:text-white font-bold"
-              >
-                ✕
-              </button>
             </div>
 
+            {/* Form Body */}
             <form
               onSubmit={handleSaveMember}
-              className="p-5 space-y-3.5 overflow-y-auto max-h-[70vh]"
+              className="p-6 space-y-4 overflow-y-auto max-h-[60vh] custom-scrollbar"
               id="member-file-form"
             >
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    First Name *
+              {/* Name Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    First Name <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={newMember.firstName}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, firstName: e.target.value })
-                    }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    placeholder="Enter first name"
-                    id="mem-input-fname"
-                  />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      value={newMember.firstName}
+                      onChange={(e) =>
+                        setNewMember({
+                          ...newMember,
+                          firstName: e.target.value,
+                        })
+                      }
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
+                      placeholder="Enter first name"
+                      id="mem-input-fname"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Last Name *
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Last Name <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={newMember.lastName}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, lastName: e.target.value })
-                    }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    placeholder="Enter last name"
-                    id="mem-input-lname"
-                  />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      value={newMember.lastName}
+                      onChange={(e) =>
+                        setNewMember({ ...newMember, lastName: e.target.value })
+                      }
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
+                      placeholder="Enter last name"
+                      id="mem-input-lname"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Email Address *
+              {/* Contact Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Email Address <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="email"
-                    required
-                    value={newMember.emailAdd}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, emailAdd: e.target.value })
-                    }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    placeholder="member@email.com"
-                    id="mem-input-email"
-                  />
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="email"
+                      required
+                      value={newMember.emailAdd}
+                      onChange={(e) =>
+                        setNewMember({ ...newMember, emailAdd: e.target.value })
+                      }
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
+                      placeholder="member@church.org"
+                      id="mem-input-email"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
                     Phone Number
                   </label>
-                  <input
-                    type="text"
-                    value={newMember.phoneNumber}
-                    onChange={phoneNumberChangeHandler}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    placeholder="+63 9xx xxx xxxx"
-                    id="mem-input-phone"
-                  />
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={newMember.phoneNumber}
+                      onChange={phoneNumberChangeHandler}
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
+                      placeholder="+63 9xx xxx xxxx"
+                      id="mem-input-phone"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Date of Birth *
+              {/* Date & Extension */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Date of Birth <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    required
-                    value={newMember.birthDate}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, birthDate: e.target.value })
-                    }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    id="mem-input-birthday"
-                  />
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      required
+                      value={newMember.birthDate}
+                      onChange={(e) =>
+                        setNewMember({
+                          ...newMember,
+                          birthDate: e.target.value,
+                        })
+                      }
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      id="mem-input-birthday"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Affiliated Extension *
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Affiliated Extension
                   </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={userData.churches.name}
-                    className="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-lg p-2 text-xs focus:outline-none font-bold"
-                  />
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      readOnly
+                      value={userData?.churches?.name || "Naga"}
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-100 text-slate-600 font-semibold cursor-not-allowed"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              {/* Status & Join Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
                     Membership Status
                   </label>
                   <select
@@ -967,66 +1191,79 @@ export default function SecretaryDashBoard({ userData, session }) {
                     onChange={(e) =>
                       setNewMember({ ...newMember, status: e.target.value })
                     }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer transition-all"
                     id="mem-input-status"
                   >
-                    <option value="Active">Active Participant</option>
-                    <option value="Inactive">Inactive Fellow</option>
-                    <option value="Outreach">Outreach Contact</option>
+                    <option value="Active">✅ Active Participant</option>
+                    <option value="Inactive">⭕ Inactive Fellow</option>
+                    <option value="Outreach">🌍 Outreach Contact</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Join Date (First Visited)
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Join Date
                   </label>
-                  <input
-                    type="date"
-                    value={newMember.joinDate}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, joinDate: e.target.value })
-                    }
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
-                    id="mem-input-joindate"
-                  />
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={newMember.joinDate}
+                      onChange={(e) =>
+                        setNewMember({ ...newMember, joinDate: e.target.value })
+                      }
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      id="mem-input-joindate"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Notes / Care Records
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5" />
+                  Notes / Pastoral Records
                 </label>
                 <textarea
                   value={newMember.notes}
                   onChange={(e) =>
                     setNewMember({ ...newMember, notes: e.target.value })
                   }
-                  className="w-full border border-slate-300 p-2 text-xs rounded-lg min-h-[60px] bg-white text-slate-800 focus:outline-none"
-                  placeholder="Insert pastoral notes, prayer request highlights or cell group references..."
+                  className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[80px] bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white resize-none"
+                  placeholder="Insert pastoral notes, prayer request highlights, cell group references, or special concerns..."
                   id="mem-input-notes"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              {/* Profile Photo Section */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                  <Image className="h-3.5 w-3.5" />
                   Member Profile Photo
                 </label>
-                <div className="flex gap-3 items-center">
-                  {newMember.profilePic ? (
-                    <img
-                      src={newMember.profilePic}
-                      alt="Preview"
-                      className="w-12 h-12 rounded-full object-cover border border-indigo-200"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-400">
-                      <FileImage className="h-5 w-5" />
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-1">
+
+                <div className="flex gap-4 items-start">
+                  {/* Avatar Preview */}
+                  <div className="shrink-0">
+                    {newMember.profilePic ? (
+                      <img
+                        src={newMember.profilePic}
+                        alt="Preview"
+                        className="w-14 h-14 rounded-xl object-cover border-2 border-indigo-200 shadow-md"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border-2 border-indigo-200 flex items-center justify-center shadow-md">
+                        <Image className="h-6 w-6 text-indigo-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    {/* URL Input */}
                     <input
                       type="text"
-                      placeholder="https://images.unsplash.com/... or paste image URL"
+                      placeholder="https://example.com/photo.jpg or paste image URL"
                       value={newMember.profilePic}
                       onChange={(e) =>
                         setNewMember({
@@ -1034,80 +1271,68 @@ export default function SecretaryDashBoard({ userData, session }) {
                           profilePic: e.target.value,
                         })
                       }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-slate-800 focus:outline-none"
+                      className="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                       id="mem-input-photo-url"
                     />
-                    <div className="flex flex-wrap gap-1.5 pt-1 items-center">
-                      <span className="text-[9px] text-slate-500 font-medium shrink-0">
-                        Presets:
+
+                    {/* Avatar Presets & Upload */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[9px] text-slate-500 font-medium">
+                        Quick presets:
                       </span>
                       {MOCK_AVATAR_PRESETS.map((avatar, idx) => (
                         <button
                           key={idx}
                           type="button"
-                          onClick={(e) =>
+                          onClick={() =>
                             setNewMember({
                               ...newMember,
                               profilePic: avatar.url,
                             })
                           }
-                          className="text-[9px] bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded transition cursor-pointer shrink-0"
+                          className="group relative text-[9px] bg-slate-100 hover:bg-indigo-100 border border-slate-200 hover:border-indigo-300 text-slate-600 hover:text-indigo-700 px-2 py-1 rounded-lg transition-all duration-200 cursor-pointer"
                         >
                           {avatar.label}
                         </button>
                       ))}
-                      <label className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-indigo-100 transition flex items-center gap-1 font-semibold shrink-0">
+
+                      <label className="flex items-center gap-1 text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-1 rounded-lg cursor-pointer hover:bg-indigo-100 transition-all duration-200 font-medium">
                         <Upload className="h-2.5 w-2.5" />
-                        <span>Upload File</span>
+                        <span>Upload</span>
                         <input
                           type="file"
                           accept="image/*"
                           className="hidden"
                           onChange={handleFileChange}
-                          // onChange={(e) => {
-                          //   const file = e.target.files?.[0];
-                          //   if (file) {
-                          //     const reader = new FileReader();
-                          //     reader.onload = (event) => {
-                          //       if (event.target?.result) {
-                          //         setNewMember({
-                          //           ...newMember,
-                          //           profilePic: event.target.result,
-                          //         });
-                          //       }
-                          //     };
-                          //     reader.readAsDataURL(file);
-                          //   }
-                          // }}
                         />
                       </label>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-slate-100 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowMemberModal(false)}
-                  className="flex-1 py-1.8 border text-slate-600 font-semibold border-slate-300 hover:bg-slate-50 text-xs rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  id="mem-submit-btn"
-                  className="flex-1 py-1.8 bg-slate-900 text-white font-semibold hover:bg-slate-850 text-xs rounded-lg transition flex items-center justify-center gap-1"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  <span>
-                    {editingMember
-                      ? "Save Modifications"
-                      : "Save and File Profile"}
-                  </span>
-                </button>
-              </div>
             </form>
+
+            {/* Footer Actions */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMemberModal(false)}
+                className="flex-1 py-2.5 border-2 border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all duration-200 cursor-pointer uppercase tracking-wide"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                onClick={handleSaveMember}
+                id="mem-submit-btn"
+                className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span>
+                  {editingMember ? "Save Changes" : "Register Member"}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1224,7 +1449,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                   <input
                     type="text"
                     readOnly
-                    value={currentExtension}
+                    value={userData.churches.name}
                     className="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-lg p-2 text-xs focus:outline-none font-bold"
                   />
                 </div>
@@ -1322,203 +1547,237 @@ export default function SecretaryDashBoard({ userData, session }) {
       {/* MEMBER PRINTABLE ID CARD GENERATOR MODAL */}
       {selectedIdMember && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto"
+          className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-200"
           id="printable-id-modal"
         >
-          {/* Dynamic Style block to isolate the ID card when physical printing is initiated */}
+          {/* Dynamic Style block for printing */}
           <style>{`
-            @media print {
-              body * {
-                visibility: hidden !important;
-              }
-              #printable-id-card-frame, #printable-id-card-frame * {
-                visibility: visible !important;
-              }
-              #printable-id-card-frame {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 100% !important;
-                background: white !important;
-                box-shadow: none !important;
-                transform: none !important;
-              }
-              .no-print {
-                display: none !important;
-              }
-            }
-          `}</style>
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #printable-id-card-frame, #printable-id-card-frame * {
+          visibility: visible !important;
+        }
+        #printable-id-card-frame {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          background: white !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      
+      .shimmer-effect {
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite;
+      }
+    `}</style>
 
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden flex flex-col md:flex-row my-8 animate-in fade-in zoom-in-95 duration-200">
-            {/* Left: The Printable Card View Screen */}
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full border border-slate-200 overflow-hidden flex flex-col lg:flex-row my-8 animate-in zoom-in-95 duration-300">
+            {/* Left: Printable Card View Screen - Premium Design */}
             <div
-              className="flex-1 bg-slate-50 p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-200"
+              className="flex-1 bg-gradient-to-br from-slate-100 to-slate-50 p-6 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-slate-200"
               id="printable-id-card-frame"
             >
-              <div className="text-center mb-4 no-print">
-                <span className="text-[10px] font-mono tracking-wider font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full uppercase">
-                  Official ID card preview
-                </span>
-                <p className="text-[11px] text-slate-500 mt-1 font-sans">
-                  Card size is prepared for absolute CR-80 standard
-                  specifications (3.37" x 2.125").
+              {/* Header Info */}
+              <div className="text-center mb-5 no-print">
+                <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-sm border border-slate-200">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-mono tracking-wider font-bold text-indigo-700 uppercase">
+                    Official ID Card Preview
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2 font-sans">
+                  Card size: CR-80 Standard (3.37" x 2.125") • High-resolution
+                  ready
                 </p>
               </div>
 
-              {/* TWO SIDED CARDS DECK */}
+              {/* Double-sided Cards Deck */}
               <div
                 className="space-y-6 flex flex-col items-center justify-center w-full"
                 id="id-double-sides-deck"
               >
-                {/* CARD FRONT SIDE */}
+                {/* CARD FRONT SIDE - Premium Redesign */}
                 <div
-                  className="w-[340px] h-[215px] bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl shadow-xl p-4.5 relative overflow-hidden border border-slate-700 select-none flex flex-col justify-between shrink-0"
+                  className="w-[360px] h-[225px] bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-2xl shadow-2xl p-5 relative overflow-hidden border border-indigo-500/30 select-none flex flex-col justify-between shrink-0 transition-all hover:shadow-3xl hover:scale-[1.02]"
                   id="id-card-front"
                 >
-                  {/* Decorative corner ambient glow */}
-                  <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
-                  <div className="absolute left-0 bottom-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+                  {/* Premium Decorative Elements */}
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-500/20 to-transparent rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/5 rounded-full blur-3xl pointer-events-none" />
 
-                  {/* Top Header Row with SVG KJV logo */}
-                  <div className="flex items-center gap-2 pb-2 border-b border-indigo-500/20">
-                    <svg viewBox="0 0 100 100" className="w-9 h-9 shrink-0">
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="46"
-                        fill="transparent"
-                        stroke="#D4AF37"
-                        strokeWidth="2.5"
-                      />
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="41"
-                        fill="#0F172A"
-                        stroke="#D4AF37"
-                        strokeWidth="1"
-                      />
-                      <circle cx="50" cy="50" r="30" fill="#1E293B" />
-                      <path
-                        d="M35 55 C 42 50, 48 53, 50 55 C 52 53, 58 50, 65 55 L 65 42 C 58 37, 52 40, 50 42 C 48 40, 42 37, 35 42 Z"
-                        fill="#FFFFFF"
-                        stroke="#D4AF37"
-                        strokeWidth="1"
-                      />
-                      <line
-                        x1="50"
-                        y1="42"
-                        x2="50"
-                        y2="55"
-                        stroke="#D4AF37"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M 48 45 L 52 45 M 50 43 L 50 49"
-                        stroke="#E11D48"
-                        strokeWidth="1"
-                      />
-                      <text
-                        x="50"
-                        y="32"
-                        fill="#D4AF37"
-                        fontSize="5.5"
-                        fontWeight="bold"
-                        textAnchor="middle"
+                  {/* Top Header with Premium Logo */}
+                  <div className="flex items-center gap-3 pb-3 border-b border-indigo-500/30 relative z-10">
+                    {/* Enhanced SVG Logo */}
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-indigo-400/20 blur-md rounded-full" />
+                      <svg
+                        viewBox="0 0 100 100"
+                        className="w-10 h-10 shrink-0 relative z-10"
                       >
-                        KJV BCCMi
-                      </text>
-                      <text
-                        x="50"
-                        y="66"
-                        fill="#FFFFFF"
-                        fontSize="4.5"
-                        fontWeight="semibold"
-                        textAnchor="middle"
-                      >
-                        1611
-                      </text>
-                    </svg>
-                    <div className="text-left font-sans flex-1 min-w-0">
-                      <h4 className="text-[9.5px] font-extrabold uppercase text-white tracking-tight leading-none">
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="46"
+                          fill="transparent"
+                          stroke="url(#goldGradient)"
+                          strokeWidth="2.5"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="41"
+                          fill="#0F172A"
+                          stroke="url(#goldGradient)"
+                          strokeWidth="1"
+                        />
+                        <circle cx="50" cy="50" r="30" fill="#1E293B" />
+                        <path
+                          d="M35 55 C 42 50, 48 53, 50 55 C 52 53, 58 50, 65 55 L 65 42 C 58 37, 52 40, 50 42 C 48 40, 42 37, 35 42 Z"
+                          fill="#FFFFFF"
+                          stroke="url(#goldGradient)"
+                          strokeWidth="1"
+                        />
+                        <line
+                          x1="50"
+                          y1="42"
+                          x2="50"
+                          y2="55"
+                          stroke="url(#goldGradient)"
+                          strokeWidth="1.5"
+                        />
+                        <path
+                          d="M 48 45 L 52 45 M 50 43 L 50 49"
+                          stroke="#E11D48"
+                          strokeWidth="1"
+                        />
+                        <text
+                          x="50"
+                          y="32"
+                          fill="url(#goldGradient)"
+                          fontSize="5.5"
+                          fontWeight="bold"
+                          textAnchor="middle"
+                        >
+                          KJV BCCMi
+                        </text>
+                        <text
+                          x="50"
+                          y="66"
+                          fill="#FFFFFF"
+                          fontSize="4.5"
+                          fontWeight="semibold"
+                          textAnchor="middle"
+                        >
+                          1611
+                        </text>
+                        <defs>
+                          <linearGradient
+                            id="goldGradient"
+                            x1="0%"
+                            y1="0%"
+                            x2="100%"
+                            y2="100%"
+                          >
+                            <stop offset="0%" stopColor="#D4AF37" />
+                            <stop offset="50%" stopColor="#FFD700" />
+                            <stop offset="100%" stopColor="#B8860B" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[10px] font-extrabold uppercase text-white tracking-tight leading-tight">
                         King James Version Bible Christian Church
                       </h4>
-                      <p className="text-[7.5px] text-indigo-200 mt-0.5 leading-tight tracking-wider uppercase font-mono">
+                      <p className="text-[7px] text-indigo-300 mt-0.5 leading-tight tracking-wider uppercase font-mono">
                         Ministries Inc. • SEC No. CN2011300373
                       </p>
                     </div>
                   </div>
 
-                  {/* Core Details Row */}
-                  <div className="flex gap-3.5 pt-2 flex-grow">
-                    {/* User profile pic */}
-                    <div className="shrink-0 flex flex-col items-center justify-start gap-1">
+                  {/* Core Details - Premium Layout */}
+                  <div className="flex gap-4 pt-3 flex-grow relative z-10">
+                    {/* User Profile Picture */}
+                    <div className="shrink-0 flex flex-col items-center gap-1.5">
                       {selectedIdMember.profilePic ? (
                         <img
                           src={selectedIdMember.profilePic}
                           alt="Member"
-                          className="w-[66px] h-[66px] bg-slate-800 border-2 border-indigo-400 rounded-lg object-cover"
+                          className="w-[70px] h-[70px] bg-slate-800 border-2 border-gradient-to-r from-indigo-400 to-gold-400 rounded-xl object-cover shadow-lg"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="w-[66px] h-[66px] bg-indigo-950 border-2 border-indigo-400 rounded-lg flex items-center justify-center font-sans font-extrabold text-indigo-300 text-lg">
-                          {selectedIdMember.firstName[0].toUpperCase()}
-                          {selectedIdMember.lastName
-                            ? selectedIdMember.lastName[0].toUpperCase()
-                            : ""}
+                        <div className="w-[70px] h-[70px] bg-gradient-to-br from-indigo-600 to-purple-600 border-2 border-indigo-400 rounded-xl flex items-center justify-center font-sans font-extrabold text-indigo-100 text-2xl shadow-lg">
+                          {selectedIdMember.firstName?.[0]?.toUpperCase() ||
+                            "U"}
+                          {selectedIdMember.lastName?.[0]?.toUpperCase() || "S"}
                         </div>
                       )}
-                      {/* Membership active tag */}
-                      <span className="text-[6.5px] font-mono tracking-widest bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.2 rounded-full uppercase font-bold text-center">
-                        Verified
+                      <span className="text-[7px] font-mono tracking-wider bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 px-2 py-0.5 rounded-full uppercase font-bold">
+                        ✓ Verified Member
                       </span>
                     </div>
 
-                    {/* Member properties description lists */}
-                    <div className="flex-1 text-left space-y-1 py-0.5 font-sans min-w-0">
-                      <div className="leading-none select-text">
-                        <span className="text-[6.5px] text-indigo-300 font-mono tracking-wider font-semibold block leading-none uppercase">
+                    {/* Member Details */}
+                    <div className="flex-1 space-y-2 py-0.5">
+                      <div>
+                        <span className="text-[6.5px] text-indigo-300 font-mono tracking-wider font-semibold block uppercase">
                           Full Registered Name
                         </span>
-                        <h5 className="text-[12.5px] font-extrabold text-white leading-tight font-sans tracking-tight truncate mt-0.5">
+                        <h5 className="text-[13px] font-extrabold text-white leading-tight tracking-tight mt-0.5">
                           {selectedIdMember.firstName}{" "}
                           {selectedIdMember.lastName}
                         </h5>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-1 pt-1 border-t border-indigo-950 leading-none select-text">
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-500/30">
                         <div>
-                          <span className="text-[6.5px] text-indigo-300 font-mono font-semibold block leading-none uppercase">
+                          <span className="text-[6px] text-indigo-300 font-mono font-semibold block uppercase">
                             ID Credentials
                           </span>
-                          <span className="text-[9.5px] font-mono font-bold text-white block mt-0.5">
+                          <span className="text-[9px] font-mono font-bold text-white block mt-0.5 bg-indigo-950/50 px-1.5 py-0.5 rounded">
                             {selectedIdMember.id}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[6.5px] text-indigo-300 font-mono font-semibold block leading-none uppercase">
+                          <span className="text-[6px] text-indigo-300 font-mono font-semibold block uppercase">
                             Extension
                           </span>
-                          <span className="text-[9.5px] font-sans font-medium text-white block mt-0.5 truncate">
-                            {userData.churches.name} Branch
+                          <span className="text-[9px] font-sans font-medium text-white block mt-0.5 truncate">
+                            {userData?.churches?.name || "Naga"} Branch
                           </span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-1 pt-1 leading-none select-text">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <span className="text-[6.5px] text-indigo-300 font-mono font-semibold block leading-none uppercase">
-                            Valid Registry
+                          <span className="text-[6px] text-indigo-300 font-mono font-semibold block uppercase">
+                            Valid Since
                           </span>
-                          <span className="text-[9px] font-mono font-medium text-white block mt-0.5">
-                            {selectedIdMember.joinDate}
+                          <span className="text-[8.5px] font-mono font-medium text-white block mt-0.5">
+                            {selectedIdMember.joinDate || "2024-01-01"}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[6.5px] text-indigo-300 font-mono font-semibold block leading-none uppercase">
-                            Role Status
+                          <span className="text-[6px] text-indigo-300 font-mono font-semibold block uppercase">
+                            Role
                           </span>
-                          <span className="text-[9px] font-mono font-bold text-indigo-200 block mt-0.5 uppercase">
+                          <span className="text-[8.5px] font-mono font-bold text-gold-300 block mt-0.5 uppercase">
                             {selectedIdMember.role || "Member"}
                           </span>
                         </div>
@@ -1526,26 +1785,25 @@ export default function SecretaryDashBoard({ userData, session }) {
                     </div>
                   </div>
 
-                  {/* ID card front footer containing signature pad */}
-                  <div className="flex justify-between items-end border-t border-indigo-950 pt-1.5 leading-none">
-                    <div className="text-[5.5px] text-indigo-300 font-mono uppercase tracking-widest text-left">
+                  {/* Footer with Signature Section */}
+                  <div className="flex justify-between items-end border-t border-indigo-500/30 pt-2 mt-1 relative z-10">
+                    <div className="text-[5.5px] text-indigo-300 font-mono uppercase tracking-wider">
                       Official Church Identification Pass (KJV BCCMI)
                     </div>
 
-                    {/* Visual Signature slot context */}
+                    {/* Signature Canvas Area */}
                     <div className="flex flex-col items-center">
-                      <div className="relative w-28 h-6.5 bg-indigo-950/60 border border-indigo-900 hover:border-indigo-400 rounded flex items-center justify-center overflow-hidden transition">
+                      <div className="relative w-32 h-8 bg-indigo-950/40 border border-indigo-600/50 hover:border-indigo-400 rounded-lg flex items-center justify-center overflow-hidden transition-all duration-200 group">
                         {sigType === "typed" ? (
-                          <span className="font-serif italic lowercase text-[10px] tracking-wide text-indigo-200 underline">
-                            {selectedIdMember.firstName.toLowerCase()}{" "}
-                            {selectedIdMember.lastName.toLowerCase()} d.
+                          <span className="font-serif italic lowercase text-[11px] tracking-wide text-indigo-200 group-hover:text-indigo-100 transition">
+                            {selectedIdMember.firstName?.toLowerCase()}{" "}
+                            {selectedIdMember.lastName?.toLowerCase()} d.
                           </span>
                         ) : (
-                          // Renders interactive whiteboard pad for drawn signature
                           <canvas
                             ref={canvasRef}
-                            width={112}
-                            height={26}
+                            width={128}
+                            height={32}
                             onMouseDown={startSignDraw}
                             onMouseMove={drawSign}
                             onMouseUp={endSignDraw}
@@ -1553,89 +1811,115 @@ export default function SecretaryDashBoard({ userData, session }) {
                             onTouchStart={startSignDraw}
                             onTouchMove={drawSign}
                             onTouchEnd={endSignDraw}
-                            className="bg-indigo-950/5 hover:bg-white/10 cursor-crosshair h-full w-full"
+                            className="bg-indigo-950/20 hover:bg-indigo-950/40 cursor-crosshair w-full h-full transition"
                           />
                         )}
+                        {sigType === "drawn" && !hasDrawnSig && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="text-[6px] text-indigo-400 font-mono">
+                              Sign here
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <span className="text-[5.5px] text-indigo-300 font-mono uppercase tracking-widest mt-0.5">
-                        Holder Signature
+                      <span className="text-[5.5px] text-indigo-300 font-mono uppercase tracking-wider mt-0.5">
+                        Member Signature
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* CARD BACK SIDE */}
+                {/* CARD BACK SIDE - Premium Redesign */}
                 <div
-                  className="w-[340px] h-[215px] bg-white text-slate-800 rounded-2xl shadow-xl p-4.5 relative overflow-hidden border border-slate-300 select-none flex flex-col justify-between shrink-0"
+                  className="w-[360px] h-[225px] bg-white text-slate-800 rounded-2xl shadow-2xl p-5 relative overflow-hidden border border-slate-200 select-none flex flex-col justify-between shrink-0 transition-all hover:shadow-3xl"
                   id="id-card-back"
                 >
-                  <div className="space-y-2 text-left font-sans">
-                    <h5 className="text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1">
-                      TERMS & COVENANT CONDITIONS
-                    </h5>
-                    <p className="text-[6.5px] text-slate-500 leading-tight">
+                  {/* Decorative Elements */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl pointer-events-none" />
+
+                  {/* Watermark */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                    <Shield className="h-32 w-32" />
+                  </div>
+
+                  <div className="space-y-3 relative z-10">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                        <Shield className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <h5 className="text-[8px] font-mono font-bold text-indigo-700 uppercase tracking-wider">
+                        TERMS & COVENANT CONDITIONS
+                      </h5>
+                    </div>
+
+                    <p className="text-[6.5px] text-slate-600 leading-relaxed">
                       This digital identification key certifies that the bearer
                       is a fully-baptized and validated active member of the
                       King James Version Bible Christian Church and Ministries
                       Inc. congregation ecosystem.
                     </p>
-                    <p className="text-[6.5px] text-slate-500 leading-tight">
+
+                    <p className="text-[6.5px] text-slate-600 leading-relaxed">
                       Members pledge to faithfully walk together in brotherly
                       love, seek the spiritual progress of the assembly, sustain
                       its worship, ordinances, discipline, and contribute
                       cheerfully to expenditures.
                     </p>
-                    <p className="text-[6.5px] text-slate-500 leading-tight">
-                      If lost or discovered in public spaces, please return
-                      coordinates immediately to:
-                      <strong className="block text-slate-800 font-mono text-[7px] mt-0.5">
-                        Global Headquarters Office, Naga Branch, Cebu City,
-                        Philippines. (Tel. 032-489-3300)
-                      </strong>
-                    </p>
+
+                    <div className="bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                      <p className="text-[6px] text-slate-700 leading-relaxed">
+                        <strong className="text-amber-800">If found:</strong>{" "}
+                        Please return to Global Headquarters Office, Naga
+                        Branch, Cebu City, Philippines.
+                        <br />
+                        <span className="font-mono text-[6px]">
+                          Tel. (032) 489-3300 • helpdesk@kjvbccmi.org
+                        </span>
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Officers signatures and official seal representation */}
-                  <div
-                    className="flex justify-between items-end border-t border-slate-100 pt-3 relative"
-                    id="officers-signature-deck"
-                  >
-                    <div className="text-left font-sans">
-                      <div className="h-6 flex items-baseline">
-                        <span className="font-serif italic text-[11px] text-slate-800 leading-none">
-                          {/* Junel Diel */}
+                  {/* Officers Signatures and Barcode */}
+                  <div className="flex justify-between items-end border-t border-slate-200 pt-3 relative z-10">
+                    <div className="text-left">
+                      <div className="h-7 flex items-end">
+                        <span className="font-serif italic text-[10px] text-slate-600 border-b border-slate-300 pb-0.5">
+                          {selectedIdMember.secretarySig || "Vengie Alterado"}
                         </span>
                       </div>
-                      <div className="text-[5.5px] font-mono uppercase text-slate-400 tracking-wider font-extrabold leading-none">
-                        {/* Secretary Signature */}
+                      <div className="text-[5px] font-mono uppercase text-slate-400 tracking-wider mt-1">
+                        Church Secretary
                       </div>
                     </div>
 
-                    {/* Simulating QR/Bar-code for high fidelity verification pass */}
+                    {/* Enhanced Barcode */}
                     <div className="flex flex-col items-center">
-                      <div className="bg-slate-105 w-16 h-4 border border-slate-205 rounded flex gap-0.5 px-1 py-0.5 items-center justify-around select-none">
-                        <div className="bg-slate-900 w-0.5 h-full opacity-90" />
-                        <div className="bg-slate-900 w-1.5 h-full opacity-90" />
-                        <div className="bg-slate-900 w-0.5 h-full opacity-90" />
-                        <div className="bg-slate-950 w-2.5 h-full" />
-                        <div className="bg-slate-900 w-1 h-full opacity-90" />
-                        <div className="bg-slate-900 w-0.5 h-full opacity-90" />
-                        <div className="bg-slate-950 w-2 h-full" />
-                        <div className="bg-slate-900 w-0.5 h-full opacity-90" />
+                      <div className="bg-white h-10 w-24 border border-slate-200 rounded-md flex items-center justify-center gap-0.5 px-1 shadow-inner">
+                        {Array.from({ length: 20 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`bg-slate-800 w-${Math.floor(Math.random() * 3) + 1} h-${Math.floor(Math.random() * 6) + 4} opacity-80`}
+                            style={{
+                              width: `${Math.floor(Math.random() * 3) + 1}px`,
+                              height: `${Math.floor(Math.random() * 6) + 4}px`,
+                            }}
+                          />
+                        ))}
                       </div>
-                      <span className="text-[5.5px] font-mono text-slate-400 mt-1 uppercase tracking-widest">
-                        {selectedIdMember.id}
+                      <span className="text-[5px] font-mono text-slate-400 mt-1 uppercase tracking-wider">
+                        ID: {selectedIdMember.id}
                       </span>
                     </div>
 
-                    <div className="text-right font-sans">
-                      <div className="h-6 flex items-baseline justify-end">
-                        <span className="font-serif italic text-[11px] text-indigo-700 leading-none">
-                          {/* Pastor J. Diel */}
+                    <div className="text-right">
+                      <div className="h-7 flex items-end justify-end">
+                        <span className="font-serif italic text-[10px] text-indigo-700 border-b border-indigo-300 pb-0.5">
+                          {selectedIdMember.pastorSig || "Rey Siaboc"}
                         </span>
                       </div>
-                      <div className="text-[5.5px] font-mono uppercase text-slate-400 tracking-wider font-extrabold leading-none">
-                        {/* Pastor Signature */}
+                      <div className="text-[5px] font-mono uppercase text-slate-400 tracking-wider mt-1">
+                        Senior Pastor
                       </div>
                     </div>
                   </div>
@@ -1643,17 +1927,24 @@ export default function SecretaryDashBoard({ userData, session }) {
               </div>
             </div>
 
-            {/* Right: Controller Dashboard Config Panel (Print Option) */}
-            <div className="w-full md:w-80 p-6 flex flex-col justify-between space-y-6 bg-white no-print">
+            {/* Right: Controller Dashboard - Premium Config Panel */}
+            <div className="w-full lg:w-80 p-6 flex flex-col justify-between space-y-6 bg-white no-print">
               <div>
-                <div className="flex justify-between items-start">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <span className="text-[9px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold uppercase block w-fit mb-1">
-                      Identity Engine
-                    </span>
-                    <h3 className="font-sans font-black text-slate-900 leading-tight text-base uppercase">
+                    <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 px-2.5 py-1 rounded-lg mb-2">
+                      <Printer className="h-3 w-3 text-white" />
+                      <span className="text-[8px] font-mono font-bold text-white uppercase tracking-wider">
+                        Identity Engine
+                      </span>
+                    </div>
+                    <h3 className="font-sans font-black text-slate-900 text-lg uppercase tracking-tight">
                       ID Parameters
                     </h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Configure card settings
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -1662,97 +1953,132 @@ export default function SecretaryDashBoard({ userData, session }) {
                       setHasDrawnSig(false);
                       setIsSignActive(false);
                     }}
-                    className="p-1 px-2.2 text-slate-450 hover:text-slate-800 font-bold border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all duration-200"
                   >
-                    ✕
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
 
-                {/* Configurations parameters */}
-                <div className="space-y-5 mt-6 border-t border-slate-100 pt-5 text-xs text-slate-750 font-sans">
-                  {/* Select Signature Method */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-mono tracking-wider font-bold text-slate-500 uppercase">
+                {/* Configuration Options */}
+                <div className="space-y-5 border-t border-slate-100 pt-5">
+                  {/* Signature Method Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-mono tracking-wider font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                      <PenTool className="h-3 w-3" />
                       1. Member Signature Mode
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setSigType("typed")}
-                        className={`py-2 px-3 border text-xs font-bold rounded-xl transition cursor-pointer text-center ${
+                        className={`py-2.5 px-3 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${
                           sigType === "typed"
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : "bg-white border-slate-350 hover:bg-slate-50 text-slate-600"
+                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
+                            : "bg-white border-2 border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50"
                         }`}
                       >
-                        Typed (Cursive)
+                        📝 Typed (Cursive)
                       </button>
                       <button
                         type="button"
                         onClick={() => setSigType("drawn")}
-                        className={`py-2 px-3 border text-xs font-bold rounded-xl transition cursor-pointer text-center ${
+                        className={`py-2.5 px-3 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${
                           sigType === "drawn"
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : "bg-white border-slate-350 hover:bg-slate-50 text-slate-600"
+                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
+                            : "bg-white border-2 border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50"
                         }`}
                       >
-                        Draw (Manual)
+                        ✍️ Draw (Manual)
                       </button>
                     </div>
                   </div>
 
-                  {/* Signature manual canvas draw desk */}
+                  {/* Manual Signature Instructions */}
                   {sigType === "drawn" && (
-                    <div
-                      className="bg-amber-50/60 border border-amber-200/80 p-3 rounded-xl space-y-1.5 text-left"
-                      id="drawn-signature-control-desk"
-                    >
-                      <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-amber-800 leading-none">
-                        Whiteboard Signature Pad
-                      </span>
-                      <p className="text-[9px] text-amber-700 leading-tight">
-                        Use mouse cursor or contact touch screen directly inside
-                        the <strong>"Holder Signature"</strong> slot inside the
-                        credit card preview box to verify and record.
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 space-y-2 animate-in slide-in-from-top duration-200">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-lg bg-amber-100 flex items-center justify-center">
+                          <PenTool className="h-3 w-3 text-amber-700" />
+                        </div>
+                        <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-amber-800">
+                          Signature Pad
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-amber-700 leading-relaxed">
+                        Click and drag inside the{" "}
+                        <strong>"Member Signature"</strong> box on the ID card
+                        preview to draw your signature.
                       </p>
-
                       <button
                         type="button"
                         onClick={clearSignCanvas}
-                        className="w-full py-1.5 bg-amber-100 font-bold text-amber-950 font-sans text-[10px] rounded hover:bg-amber-200 transition text-center focus:outline-none uppercase tracking-wide cursor-pointer"
+                        className="w-full py-2 bg-amber-100 hover:bg-amber-200 font-bold text-amber-900 text-[9px] rounded-lg transition-all duration-200 text-center uppercase tracking-wide cursor-pointer"
                       >
-                        Reset/Erase Drawing
+                        🗑️ Reset / Clear Drawing
                       </button>
                     </div>
                   )}
 
-                  <div
-                    className="space-y-2 block"
-                    id="printer-friendly-instructions"
-                  >
-                    <span className="block text-[11px] font-mono tracking-wider font-bold text-slate-500 uppercase">
-                      2. Print Alignment Specs
-                    </span>
-                    <ul className="space-y-1.5 list-disc pl-4 text-[10px] text-slate-500 leading-relaxed">
-                      <li>
-                        Use standard <strong>PVC card printers</strong> or
-                        high-gloss matte thick paper (CR-80 size).
-                      </li>
-                      <li>
-                        Select <strong>100% or "Actual Size"</strong> scaling in
-                        browser print parameters.
-                      </li>
-                      <li>
-                        Enable <strong>"Background graphics"</strong> to print
-                        the custom Indigo gradients.
-                      </li>
-                    </ul>
+                  {/* Officer Signatures Section */}
+                  <div className="space-y-2 pt-2">
+                    <label className="block text-[10px] font-mono tracking-wider font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                      <Users className="h-3 w-3" />
+                      2. Officer Signatures (Optional)
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Secretary Name"
+                        value={selectedIdMember.secretarySig || ""}
+                        onChange={(e) =>
+                          setSelectedIdMember({
+                            ...selectedIdMember,
+                            secretarySig: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Pastor Name"
+                        value={selectedIdMember.pastorSig || ""}
+                        onChange={(e) =>
+                          setSelectedIdMember({
+                            ...selectedIdMember,
+                            pastorSig: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Print Instructions */}
+                  <div className="space-y-2 pt-2">
+                    <label className="block text-[10px] font-mono tracking-wider font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                      <Printer className="h-3 w-3" />
+                      3. Print Specifications
+                    </label>
+                    <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+                      <p className="text-[9px] text-slate-600 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        Use PVC card printer or glossy paper (CR-80)
+                      </p>
+                      <p className="text-[9px] text-slate-600 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        Select "Actual Size" in print dialog
+                      </p>
+                      <p className="text-[9px] text-slate-600 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        Enable "Background Graphics" option
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Print action Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex gap-2">
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-slate-200 flex gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1760,17 +2086,17 @@ export default function SecretaryDashBoard({ userData, session }) {
                     setHasDrawnSig(false);
                     setIsSignActive(false);
                   }}
-                  className="flex-1 py-3 border text-slate-600 border-slate-300 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer text-center uppercase tracking-wide"
+                  className="flex-1 py-3 border-2 border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all duration-200 cursor-pointer uppercase tracking-wide"
                 >
-                  Close Console
+                  Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                  className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
                 >
                   <Printer className="h-4 w-4" />
-                  <span>Print ID Voucher</span>
+                  <span>Print ID Card</span>
                 </button>
               </div>
             </div>

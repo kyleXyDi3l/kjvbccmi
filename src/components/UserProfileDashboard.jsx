@@ -16,6 +16,7 @@ import {
   Upload,
   Users,
   Church,
+  Database,
 } from "lucide-react";
 
 const PRESET_AVATARS = [
@@ -218,232 +219,258 @@ export default function UserProfileDashboard({
 
   return (
     <div
-      className="bg-slate-50 min-h-screen py-10"
+      className="bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen py-8"
       id="profile-dashboard-layout"
     >
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Back and Breadcrumb panel */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        {/* Back and Breadcrumb panel - Redesigned */}
         <div
-          className="flex items-center justify-between"
+          className="flex items-center justify-between flex-wrap gap-3"
           id="profile-dashboard-header"
         >
           <button
             onClick={onBackToHome}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition shadow-2xs cursor-pointer"
+            className="group flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-white bg-white hover:bg-indigo-600 border border-slate-200 hover:border-indigo-600 px-4 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-lg cursor-pointer"
             id="profile-back-btn"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
             <span>Return to Community Home</span>
           </button>
 
           <div
-            className="flex items-center gap-2 text-xs text-slate-400 font-mono"
+            className="flex items-center gap-2 text-xs text-slate-400 font-mono bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200"
             id="profile-mode-indicator"
           >
-            <span className="h-2.5 w-2.5 rounded-full  bg-emerald-500 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>CLOUD AUTHENTICATED</span>
+            <Shield className="h-3 w-3 text-emerald-500 ml-1" />
           </div>
         </div>
 
-        {/* Outer Frame with Split Screen UI */}
+        {/* Outer Frame with Split Screen UI - Enhanced */}
         <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
           id="profile-split-container"
         >
-          {/* Col 1: Bio & Security Level */}
+          {/* Col 1: Bio & Security Level - Premium Card */}
           <div
-            className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs h-fit space-y-6"
+            className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden h-fit backdrop-blur-sm"
             id="profile-sidebar-card"
           >
-            <div className="flex flex-col items-center text-center space-y-3">
-              {/* Circular Avatar Facebook style with hover upload trigger */}
-              <div
-                className="relative group"
-                id="profile-avatar-uploader-shell"
-              >
-                <div className="h-24 w-24 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center font-sans font-bold text-3xl text-indigo-700 overflow-hidden relative">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt="User avatar preview"
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-indigo-600/10 flex items-center justify-center text-indigo-700">
-                      {newFirstName[0]}
-                      {newLastName[0]}
-                    </div>
-                  )}
-                </div>
-
-                {/* Facebook/Instagram style circular edit overlay button */}
-                <label
-                  htmlFor="avatar-file-upload"
-                  className="absolute bottom-0 right-0 p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full border border-white shadow-md cursor-pointer transition transform hover:scale-110 flex items-center justify-center"
-                  title="Upload profile picture"
-                  id="avatar-upload-trigger-label"
+            {/* Decorative Header Bar */}
+            <div className="h-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 relative">
+              <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
+                {/* Circular Avatar with premium styling */}
+                <div
+                  className="relative group"
+                  id="profile-avatar-uploader-shell"
                 >
-                  <Camera className="h-4 w-4" />
-                  <input
-                    type="file"
-                    id="avatar-file-upload"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
+                  <div className="h-28 w-28 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 border-4 border-white shadow-xl flex items-center justify-center font-sans font-bold text-4xl text-indigo-700 overflow-hidden">
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt="User avatar preview"
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                        {userData?.firstName?.charAt(0) || "U"}
+                        {userData?.lastName?.charAt(0) || "s"}
+                      </div>
+                    )}
+                  </div>
 
+                  {/* Premium upload button */}
+                  <label
+                    htmlFor="avatar-file-upload"
+                    className="absolute bottom-1 right-1 p-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full border-2 border-white shadow-lg cursor-pointer transition transform hover:scale-110 flex items-center justify-center"
+                    title="Upload profile picture"
+                    id="avatar-upload-trigger-label"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    <input
+                      type="file"
+                      id="avatar-file-upload"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Profile Info */}
+            <div className="pt-16 pb-6 px-6 text-center">
               <div>
-                <h2 className="font-sans font-extrabold text-slate-800 text-lg leading-tight">
-                  {userData.firstName} {userData.lastName}
+                <h2 className="font-sans font-extrabold text-slate-800 text-xl leading-tight">
+                  {userData?.firstName || "John"} {userData?.lastName || "Doe"}
                 </h2>
-                <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                   <span
-                    className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${
+                    className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full shadow-sm ${
                       userRole === "Admin"
-                        ? "bg-red-100 text-red-800"
+                        ? "bg-gradient-to-r from-red-500 to-rose-500 text-white"
                         : userRole === "Pastor"
-                          ? "bg-indigo-100 text-indigo-800"
+                          ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white"
                           : userRole === "Secretary"
-                            ? "bg-sky-100 text-sky-800"
+                            ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white"
                             : userRole === "Treasurer"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-slate-100 text-slate-700"
+                              ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                              : "bg-gradient-to-r from-slate-500 to-slate-600 text-white"
                     }`}
                   >
-                    {userRole} Officer
+                    {userRole || "Member"} Officer
                   </span>
-                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-sans">
-                    {newChurchName} Chapel
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-sans">
+                    {newChurchName || "Naga"} Chapel
                   </span>
                 </div>
               </div>
             </div>
 
+            {/* Status Summary */}
             <div
-              className="border-t border-slate-100 pt-4 space-y-4"
+              className="border-t border-slate-100 pt-4 pb-6 px-6 space-y-4 bg-slate-50/30"
               id="profile-status-summary"
             >
-              <div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                  SECURE EMAIL IDENTIFIER
-                </span>
-                <span className="text-xs text-slate-600 font-sans break-all font-semibold">
-                  {session.user.email}
-                </span>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    document.getElementById("avatar-file-upload")?.click()
-                  }
-                  className="w-full flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
-                  id="direct-upload-helper-btn"
-                >
-                  <Upload className="h-3.5 w-3.5 text-indigo-600" />
-                  <span>Upload Custom Photo</span>
-                </button>
-              </div>
-
-              <div className="border-t border-slate-100 pt-3">
-                <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                  PORTAL DATABASE ASSIGNMENT
-                </span>
-                <span className="text-xs text-slate-600 font-sans font-semibold">
-                  {newChurchName} Church Database
-                </span>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                  SECURITY LEVEL
-                </span>
-                <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-0.5">
-                  <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <span>Multifactor Handshake Completed</span>
+              <div className="flex items-start gap-3">
+                <Mail className="h-4 w-4 text-indigo-500 mt-0.5" />
+                <div className="flex-1">
+                  <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
+                    SECURE EMAIL IDENTIFIER
+                  </span>
+                  <span className="text-xs text-slate-700 font-sans break-all font-semibold">
+                    {session?.user?.email || "user@church.org"}
+                  </span>
                 </div>
               </div>
-              {userData.gender && (
-                <div className="border-t border-slate-100 pt-3">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                    GENDER
+
+              <button
+                type="button"
+                onClick={() =>
+                  document.getElementById("avatar-file-upload")?.click()
+                }
+                className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer shadow-sm"
+                id="direct-upload-helper-btn"
+              >
+                <Upload className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Upload Custom Photo</span>
+              </button>
+
+              <div className="flex items-start gap-3 pt-2 border-t border-slate-200">
+                <Database className="h-4 w-4 text-emerald-500 mt-0.5" />
+                <div className="flex-1">
+                  <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
+                    PORTAL DATABASE ASSIGNMENT
                   </span>
-                  <span className="text-xs text-slate-600 font-sans font-semibold">
-                    {userData.gender}
+                  <span className="text-xs text-slate-700 font-sans font-semibold">
+                    {newChurchName || "Naga"} Church Database
                   </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Shield className="h-4 w-4 text-emerald-500 mt-0.5" />
+                <div className="flex-1">
+                  <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
+                    SECURITY LEVEL
+                  </span>
+                  <div className="flex items-center gap-2 text-xs text-slate-700 mt-0.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Multifactor Handshake Completed</span>
+                  </div>
+                </div>
+              </div>
+
+              {userData?.gender && (
+                <div className="flex items-start gap-3 pt-2 border-t border-slate-200">
+                  <Users className="h-4 w-4 text-purple-500 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
+                      GENDER
+                    </span>
+                    <span className="text-xs text-slate-700 font-sans font-semibold">
+                      {userData.gender}
+                    </span>
+                  </div>
                 </div>
               )}
 
               {newChurch && (
-                <div className="border-t border-slate-100 pt-3">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                    CHURCH AFFILIATION
-                  </span>
-                  <span className="text-xs text-slate-600 font-sans font-semibold">
-                    {userData.churches?.name}
-                  </span>
+                <div className="flex items-start gap-3 pt-2 border-t border-slate-200">
+                  <Church className="h-4 w-4 text-amber-500 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-wider">
+                      CHURCH AFFILIATION
+                    </span>
+                    <span className="text-xs text-slate-700 font-sans font-semibold">
+                      {userData?.churches?.name || "Global Outreach Ministry"}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Col 2 & 3: Interactive Settings Form */}
+          {/* Col 2 & 3: Interactive Settings Form - Premium Card */}
           <div
-            className="md:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
+            className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
             id="profile-details-form-card"
           >
-            <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
               <div>
                 <h3 className="text-base font-sans font-extrabold text-slate-900">
                   Personal Security Parameters
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Modify your localized database profile parameters.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Modify your localized database profile parameters securely.
                 </p>
               </div>
-              <User className="h-5 w-5 text-indigo-600" />
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+                <User className="h-5 w-5 text-white" />
+              </div>
             </div>
 
             <form
               onSubmit={handleSubmit}
-              className="p-6 space-y-5"
+              className="p-6 space-y-6"
               id="profile-details-form"
             >
               {errorMsg && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
+                <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-900 rounded-xl p-4 flex items-start gap-3 text-xs shadow-sm">
                   <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
+                <div className="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-900 rounded-xl p-4 flex items-start gap-3 text-xs shadow-sm">
                   <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                   <span>{successMsg}</span>
                 </div>
               )}
 
-              {/* Beautiful Interactive Avatar Presets Choice panel */}
+              {/* Avatar Presets - Premium Grid */}
               <div
-                className="border border-indigo-50 bg-indigo-50/15 rounded-2xl p-4.5 space-y-3.5"
+                className="border border-indigo-100 bg-gradient-to-br from-indigo-50/30 to-purple-50/30 rounded-2xl p-5 space-y-4"
                 id="profile-avatar-presets-box"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Image className="h-4 w-4 text-indigo-600" />
-                    <span>Choose Instant High-Quality Portrait Preset</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                      <Image className="h-3.5 w-3.5 text-white" />
+                    </div>
+                    <span>Choose Instant Portrait Preset</span>
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-slate-400 font-mono bg-white px-2 py-0.5 rounded-full">
                     Instant selector
                   </span>
                 </div>
 
                 <div
-                  className="grid grid-cols-6 gap-2.5"
+                  className="grid grid-cols-3 sm:grid-cols-6 gap-3"
                   id="preset-avatar-grid"
                 >
                   {PRESET_AVATARS.map((avatar, idx) => {
@@ -459,10 +486,10 @@ export default function UserProfileDashboard({
                           );
                           setTimeout(() => setSuccessMsg(""), 5000);
                         }}
-                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition transform hover:scale-105 active:scale-95 cursor-pointer ${
+                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer shadow-sm ${
                           isSelected
-                            ? "border-indigo-600 ring-2 ring-indigo-500/30"
-                            : "border-slate-205 hover:border-slate-300 bg-slate-100"
+                            ? "border-indigo-600 ring-2 ring-indigo-500/40 shadow-lg"
+                            : "border-slate-200 hover:border-indigo-300 bg-slate-50"
                         }`}
                         title={avatar.name}
                       >
@@ -473,10 +500,10 @@ export default function UserProfileDashboard({
                           referrerPolicy="no-referrer"
                         />
                         {isSelected && (
-                          <div className="absolute inset-0 bg-indigo-600/30 flex items-center justify-center">
-                            <span className="bg-indigo-600 text-white p-0.5 rounded-full shadow-md">
-                              <CheckCircle className="h-3.5 w-3.5" />
-                            </span>
+                          <div className="absolute inset-0 bg-indigo-600/40 backdrop-blur-[1px] flex items-center justify-center">
+                            <div className="bg-indigo-600 text-white p-1 rounded-full shadow-lg ring-2 ring-white">
+                              <CheckCircle className="h-3 w-3" />
+                            </div>
                           </div>
                         )}
                       </button>
@@ -485,9 +512,10 @@ export default function UserProfileDashboard({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Form Fields - Enhanced Layout */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-1">
                     <span>First Name</span>
                     <span className="text-rose-500">*</span>
                   </label>
@@ -496,14 +524,14 @@ export default function UserProfileDashboard({
                     value={newFirstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                     placeholder="Enter first name"
                     id="profile-firstname-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-1">
                     <span>Last Name</span>
                     <span className="text-rose-500">*</span>
                   </label>
@@ -512,16 +540,16 @@ export default function UserProfileDashboard({
                     value={newLastName}
                     onChange={(e) => setLastName(e.target.value)}
                     required
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                     placeholder="Enter last name"
                     id="profile-lastname-input"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-2">
                     <Phone className="h-3.5 w-3.5 text-slate-400" />
                     <span>Mobile Phone Number</span>
                   </label>
@@ -529,37 +557,37 @@ export default function UserProfileDashboard({
                     type="tel"
                     value={newPhoneNumber}
                     onChange={phoneNumberChangeHandler}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans font-mono"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                     placeholder="0917-000-0000"
                     id="profile-phone-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5 text-slate-400" />
                     <span>Date of Birth</span>
                   </label>
                   <input
                     type="date"
-                    value={newBirthDate} //"2026-06-04"
+                    value={newBirthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                     id="profile-birthday-input"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-2">
                     <Users className="h-3.5 w-3.5 text-slate-400" />
                     <span>Gender Identity</span>
                   </label>
                   <select
                     value={newGender}
                     onChange={(e) => setGender(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans cursor-pointer transition-all bg-slate-50 hover:bg-white"
                     id="profile-gender-input"
                   >
                     <option value="">Select Gender</option>
@@ -569,13 +597,12 @@ export default function UserProfileDashboard({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-2">
                     <Church className="h-3.5 w-3.5 text-slate-400" />
                     <span>Local Church / Congregation</span>
                   </label>
                   <input
                     type="text"
-                    //onChange={handleChurchChange}
                     value={newChurchName}
                     onChange={(e) => {
                       setChurchName(e.target.value);
@@ -584,7 +611,7 @@ export default function UserProfileDashboard({
                       );
                       setChurch(option?.getAttribute("data-id") || "");
                     }}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                     placeholder="Enter the church you belong to"
                     id="profile-church-input"
                     list="church-presets"
@@ -600,15 +627,18 @@ export default function UserProfileDashboard({
                 </div>
               </div>
 
-              <div className="border-t border-slate-100 pt-4">
-                <h4 className="text-xs font-bold text-slate-805 uppercase tracking-wide mb-3 flex items-center gap-1">
-                  <Key className="h-4 w-4 text-slate-400" />
+              {/* Password Section - Premium */}
+              <div className="border-t border-slate-200 pt-5 mt-2">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                    <Key className="h-3.5 w-3.5 text-white" />
+                  </div>
                   <span>Interactive Security Key Password</span>
                 </h4>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] text-slate-500 font-sans leading-relaxed mb-1.5">
+                    <label className="block text-[11px] text-slate-500 font-sans leading-relaxed mb-2">
                       Enter a new secure portal password. This security
                       credential guarantees offline verification and protects
                       admin dashboards.
@@ -618,14 +648,14 @@ export default function UserProfileDashboard({
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full border border-slate-300 rounded-xl p-2.5 pr-12 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:border-indigo-500 text-slate-800 font-sans font-mono"
+                        className="w-full border border-slate-200 rounded-xl p-3 pr-24 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-slate-800 font-sans transition-all bg-slate-50 hover:bg-white"
                         placeholder="••••••••••••"
                         id="profile-password-input"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-2 text-[10px] text-slate-500 hover:text-slate-900 font-bold uppercase py-1 px-1.5 rounded bg-slate-100 transition"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase py-1.5 px-3 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition"
                         id="profile-toggle-password"
                       >
                         {showPassword ? "Hide" : "Show"}
@@ -635,14 +665,15 @@ export default function UserProfileDashboard({
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div
-                className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100"
+                className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200"
                 id="profile-actions-bar"
               >
                 <button
                   type="button"
                   onClick={onBackToHome}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl transition cursor-pointer"
+                  className="px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all duration-200 cursor-pointer"
                   id="profile-cancel-btn"
                 >
                   Cancel
@@ -650,11 +681,14 @@ export default function UserProfileDashboard({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-6 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer"
                   id="profile-save-btn"
                 >
                   {isSubmitting ? (
-                    <span>Synchronizing...</span>
+                    <>
+                      <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Synchronizing...</span>
+                    </>
                   ) : (
                     <>
                       <Save className="h-3.5 w-3.5" />
