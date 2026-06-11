@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   Shield,
@@ -20,159 +20,583 @@ import {
   Check,
   Newspaper,
   Landmark,
+  Filter,
+  Save,
+  AlertCircle,
+  RefreshCw,
+  Eye,
+  Printer,
+  ChevronLeft,
+  ChevronRight,
+  Mail,
+  Phone,
+  MapPin,
+  DollarSign,
+  Receipt,
+  Tag,
 } from "lucide-react";
+import { supabase } from "../supabase-client";
 
-// ==========================================
-// SAMPLE DATA FOR UI RENDERING ONLY
-// ==========================================
-const sampleMembers = [
-  {
-    id: "MEM001",
-    firstName: "John",
-    lastName: "Dela Cruz",
-    email: "john@church.org",
-    extension: "Naga",
-    role: "Pastor",
-    status: "Active",
-  },
-  {
-    id: "MEM002",
-    firstName: "Maria",
-    lastName: "Santos",
-    email: "maria@church.org",
-    extension: "Global",
-    role: "Admin",
-    status: "Active",
-  },
-  {
-    id: "MEM003",
-    firstName: "Jose",
-    lastName: "Reyes",
-    email: "jose@church.org",
-    extension: "Samar",
-    role: "Member",
-    status: "Inactive",
-  },
-];
-
-const sampleEvents = [
-  {
-    id: "EVT001",
-    date: "2026-06-15",
-    time: "09:00 AM",
-    ministryType: "Worship",
-    title: "Sunday Praise Celebration",
-    extension: "Naga",
-  },
-  {
-    id: "EVT002",
-    date: "2026-06-20",
-    time: "05:00 PM",
-    ministryType: "Youth",
-    title: "Youth Ignite Night",
-    extension: "Global",
-  },
-];
-
-const samplePosts = [
-  {
-    id: "PST001",
-    date: "Jun 10, 2026",
-    type: "announcement",
-    title: "Church Anniversary",
-    extension: "Naga",
-    active: true,
-  },
-  {
-    id: "PST002",
-    date: "Jun 09, 2026",
-    type: "study",
-    title: "Sermon: The Good Shepherd",
-    extension: "Global",
-    active: false,
-  },
-];
-
-const sampleFinances = [
-  {
-    id: "FIN001",
-    receiptNumber: "T-101",
-    date: "2026-06-01",
-    category: "tithe",
-    description: "Sunday Tithes",
-    contributorName: "John Dela Cruz",
-    extension: "Naga",
-    amount: 5000,
-  },
-  {
-    id: "FIN002",
-    receiptNumber: "D-202",
-    date: "2026-06-02",
-    category: "donation",
-    description: "Building Fund",
-    contributorName: "Anonymous",
-    extension: "Global",
-    amount: 15000,
-  },
-  {
-    id: "FIN003",
-    receiptNumber: "E-303",
-    date: "2026-06-03",
-    category: "expense",
-    description: "Electricity Bill",
-    contributorName: "",
-    extension: "Samar",
-    amount: -3500,
-  },
-];
-
-const sampleAuditLogs = [
-  {
-    id: "log_1",
-    timestamp: "2026-06-07 08:30:15",
-    action: "Initial Admin initialization completed",
-    target: "Global Console",
-    isOnline: true,
-  },
-  {
-    id: "log_2",
-    timestamp: "2026-06-07 09:12:44",
-    action: "Authorized Developer / Pastor Account",
-    target: "Global Panel",
-    isOnline: true,
-  },
-];
-
-// ==========================================
-// UI ONLY - NO LOGIC, NO STATE DECLARATIONS
-// ==========================================
-export default function AdminDashboardUI() {
+export default function AdminDashboard({ userData, session }) {
   const [activeTab, setActiveTab] = useState("members");
-  const [selectedEventDetails, setSelectedEventDetails] = useState(null);
-  const [selectedPostDetails, setSelectedPostDetails] = useState(null);
-  const [deletingUserId, setDeletingUserId] = useState(null);
-  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-  const [isAddPostModalOpen, setIsAddPostModalOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState(null);
-  const [auditedReceiptIds, setAuditedReceiptIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Sample stats calculations
-  const totalMembers = sampleMembers.length;
-  const upcomingEventsCount = sampleEvents.length;
-  const broadcastNewsCount = samplePosts.length;
-  const tithesTotal = 5000;
-  const donationsTotal = 15000;
-  const expensesTotal = 3500;
-  const vaultTotal = tithesTotal + donationsTotal - expensesTotal;
+  // Members State
+  const [members, setMembers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Member Modal State
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+  const [newMember, setNewMember] = useState({
+    firstName: "",
+    lastName: "",
+    emailAdd: "",
+    phoneNumber: "",
+    birthDate: "",
+    churchID: userData?.churches?.id || 1,
+    status: "Active",
+    joinDate: new Date().toISOString().split("T")[0],
+    notes: "",
+    profilePic: "",
+  });
+
+  // Finances State
+  const [finances, setFinances] = useState([]);
+  const [financeSearch, setFinanceSearch] = useState("");
+  const [financeCategoryFilter, setFinanceCategoryFilter] = useState("All");
+  const [financeCurrentPage, setFinanceCurrentPage] = useState(1);
+  const financesPerPage = 10;
+  const [showFinanceModal, setShowFinanceModal] = useState(false);
+  const [editingFinance, setEditingFinance] = useState(null);
+  const [newFinance, setNewFinance] = useState({
+    amount: "",
+    transType: "Offering",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    contributorName: "",
+    contributorEmailAdd: "",
+    churchID: userData?.churches?.id || 1,
+  });
+
+  // Posts State
+  const [posts, setPosts] = useState([]);
+  const [postSearch, setPostSearch] = useState("");
+  const [postCategoryFilter, setPostCategoryFilter] = useState("All");
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [newPost, setNewPost] = useState({
+    title: "",
+    content: "",
+    summary: "",
+    imageBanner: "",
+    images: "",
+    category: "news",
+    affiliation: "Global",
+  });
+
+  // Stats
+  const [stats, setStats] = useState({
+    totalMembers: 0,
+    totalFinances: 0,
+    totalPosts: 0,
+    totalOfferings: 0,
+    totalDonations: 0,
+    totalExpenses: 0,
+  });
+
+  // Fetch all data
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  // Update stats when data changes
+  useEffect(() => {
+    calculateStats();
+  }, [members, finances, posts]);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchMembers(),
+      fetchFinances(),
+      fetchPosts(),
+    ]);
+    setLoading(false);
+  };
+
+  // ==================== MEMBERS CRUD ====================
+  const fetchMembers = async () => {
+    const { data, error } = await supabase
+      .from("members")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching members:", error);
+      setErrorMsg("Failed to load members");
+    } else {
+      setMembers(data || []);
+    }
+  };
+
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const memberData = {
+      ...newMember,
+      createdBy: session?.user?.id,
+      churchID: userData?.churches?.id || 1,
+    };
+
+    const { error } = await supabase.from("members").insert([memberData]);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Member added successfully!");
+      await fetchMembers();
+      setShowMemberModal(false);
+      resetMemberForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleUpdateMember = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { error } = await supabase
+      .from("members")
+      .update(newMember)
+      .eq("id", editingMember.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Member updated successfully!");
+      await fetchMembers();
+      setShowMemberModal(false);
+      setEditingMember(null);
+      resetMemberForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleDeleteMember = async (id) => {
+    if (!confirm("Are you sure you want to delete this member?")) return;
+
+    setLoading(true);
+    const { error } = await supabase.from("members").delete().eq("id", id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Member deleted successfully!");
+      await fetchMembers();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const resetMemberForm = () => {
+    setNewMember({
+      firstName: "",
+      lastName: "",
+      emailAdd: "",
+      phoneNumber: "",
+      birthDate: "",
+      churchID: userData?.churches?.id || 1,
+      status: "Active",
+      joinDate: new Date().toISOString().split("T")[0],
+      notes: "",
+      profilePic: "",
+    });
+  };
+
+  // ==================== FINANCES CRUD ====================
+  const fetchFinances = async () => {
+    const { data, error } = await supabase
+      .from("finances")
+      .select("*")
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching finances:", error);
+    } else {
+      setFinances(data || []);
+    }
+  };
+
+  const handleAddFinance = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const amount = newFinance.transType === "Expense" 
+      ? -Math.abs(parseFloat(newFinance.amount))
+      : Math.abs(parseFloat(newFinance.amount));
+
+    const receiptNumber = `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const financeData = {
+      ...newFinance,
+      amount,
+      receiptNumber,
+      createdBy: session?.user?.id,
+      churchID: userData?.churches?.id || 1,
+    };
+
+    const { error } = await supabase.from("finances").insert([financeData]);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Transaction recorded successfully!");
+      await fetchFinances();
+      setShowFinanceModal(false);
+      resetFinanceForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleUpdateFinance = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const amount = newFinance.transType === "Expense"
+      ? -Math.abs(parseFloat(newFinance.amount))
+      : Math.abs(parseFloat(newFinance.amount));
+
+    const { error } = await supabase
+      .from("finances")
+      .update({ ...newFinance, amount })
+      .eq("id", editingFinance.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Transaction updated successfully!");
+      await fetchFinances();
+      setShowFinanceModal(false);
+      setEditingFinance(null);
+      resetFinanceForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleDeleteFinance = async (id) => {
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
+
+    setLoading(true);
+    const { error } = await supabase.from("finances").delete().eq("id", id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Transaction deleted successfully!");
+      await fetchFinances();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const resetFinanceForm = () => {
+    setNewFinance({
+      amount: "",
+      transType: "Offering",
+      date: new Date().toISOString().split("T")[0],
+      description: "",
+      contributorName: "",
+      contributorEmailAdd: "",
+      churchID: userData?.churches?.id || 1,
+    });
+  };
+
+  // ==================== POSTS CRUD ====================
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching posts:", error);
+    } else {
+      setPosts(data || []);
+    }
+  };
+
+  const handleAddPost = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const postData = {
+      ...newPost,
+      createdBy: session?.user?.id,
+    };
+
+    const { error } = await supabase.from("posts").insert([postData]);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Post published successfully!");
+      await fetchPosts();
+      setShowPostModal(false);
+      resetPostForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleUpdatePost = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { error } = await supabase
+      .from("posts")
+      .update(newPost)
+      .eq("id", editingPost.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Post updated successfully!");
+      await fetchPosts();
+      setShowPostModal(false);
+      setEditingPost(null);
+      resetPostForm();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleDeletePost = async (id) => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+
+    setLoading(true);
+    const { error } = await supabase.from("posts").delete().eq("id", id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg("Post deleted successfully!");
+      await fetchPosts();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const handleTogglePostStatus = async (post) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from("posts")
+      .update({ active: !post.active })
+      .eq("id", post.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg(post.active ? "Post unpublished" : "Post published");
+      await fetchPosts();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  const resetPostForm = () => {
+    setNewPost({
+      title: "",
+      content: "",
+      summary: "",
+      imageBanner: "",
+      images: "",
+      category: "news",
+      affiliation: "Global",
+    });
+  };
+
+  // ==================== STATS CALCULATION ====================
+  const calculateStats = () => {
+    const totalOfferings = finances
+      .filter(f => f.transType === "Offering")
+      .reduce((sum, f) => sum + (f.amount > 0 ? f.amount : 0), 0);
+    
+    const totalDonations = finances
+      .filter(f => f.transType === "Donation")
+      .reduce((sum, f) => sum + (f.amount > 0 ? f.amount : 0), 0);
+    
+    const totalExpenses = finances
+      .filter(f => f.transType === "Expense")
+      .reduce((sum, f) => sum + Math.abs(f.amount), 0);
+
+    setStats({
+      totalMembers: members.length,
+      totalFinances: finances.length,
+      totalPosts: posts.length,
+      totalOfferings,
+      totalDonations,
+      totalExpenses,
+    });
+  };
+
+  const vaultTotal = stats.totalOfferings + stats.totalDonations - stats.totalExpenses;
+
+  // ==================== FILTERING ====================
+  const filteredMembers = useMemo(() => {
+    let filtered = [...members];
+    
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(m =>
+        m.firstName?.toLowerCase().includes(term) ||
+        m.lastName?.toLowerCase().includes(term) ||
+        m.emailAdd?.toLowerCase().includes(term) ||
+        m.id?.toString().includes(term)
+      );
+    }
+    
+    if (roleFilter !== "All") {
+      filtered = filtered.filter(m => m.role === roleFilter);
+    }
+    
+    if (statusFilter !== "All") {
+      filtered = filtered.filter(m => m.status === statusFilter);
+    }
+    
+    return filtered;
+  }, [members, searchTerm, roleFilter, statusFilter]);
+
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredMembers.slice(start, start + itemsPerPage);
+  }, [filteredMembers, currentPage]);
+
+  const filteredFinances = useMemo(() => {
+    let filtered = [...finances];
+    
+    if (financeSearch) {
+      const term = financeSearch.toLowerCase();
+      filtered = filtered.filter(f =>
+        f.receiptNumber?.toLowerCase().includes(term) ||
+        f.description?.toLowerCase().includes(term) ||
+        f.contributorName?.toLowerCase().includes(term)
+      );
+    }
+    
+    if (financeCategoryFilter !== "All") {
+      filtered = filtered.filter(f => f.transType === financeCategoryFilter);
+    }
+    
+    return filtered;
+  }, [finances, financeSearch, financeCategoryFilter]);
+
+  const paginatedFinances = useMemo(() => {
+    const start = (financeCurrentPage - 1) * financesPerPage;
+    return filteredFinances.slice(start, start + financesPerPage);
+  }, [filteredFinances, financeCurrentPage]);
+
+  const filteredPosts = useMemo(() => {
+    let filtered = [...posts];
+    
+    if (postSearch) {
+      const term = postSearch.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.title?.toLowerCase().includes(term) ||
+        p.content?.toLowerCase().includes(term)
+      );
+    }
+    
+    if (postCategoryFilter !== "All") {
+      filtered = filtered.filter(p => p.category === postCategoryFilter);
+    }
+    
+    return filtered;
+  }, [posts, postSearch, postCategoryFilter]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    setFinanceCurrentPage(1);
+  }, [financeSearch, financeCategoryFilter]);
+
+  if (loading && members.length === 0 && finances.length === 0 && posts.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="space-y-6 bg-gradient-to-br from-slate-50 to-white min-h-screen p-6"
-      id="admin-global-command-panel"
-    >
-      {/* HEADER HERO AREA - Premium Design */}
+    <div className="space-y-6 bg-gradient-to-br from-slate-50 to-white min-h-screen p-6">
+      {/* Success/Error Messages */}
+      {(successMsg || errorMsg) && (
+        <div className="fixed top-20 right-4 z-50 animate-in slide-in-from-top duration-300">
+          {successMsg && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 shadow-lg">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+          {errorMsg && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2 shadow-lg">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HEADER HERO AREA */}
       <div className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-8 border border-slate-700/50 overflow-hidden shadow-2xl">
-        {/* Decorative Elements */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -193,49 +617,38 @@ export default function AdminDashboardUI() {
               </span>
             </h1>
             <p className="text-sm text-slate-400 font-sans mt-1 max-w-2xl">
-              Oversee active congregational campuses, deploy event schedulers,
-              review financial ledgers, and manage role security with
-              enterprise-grade tools.
+              Oversee active congregational campuses, manage financial ledgers, and control content across all church platforms.
             </p>
           </div>
 
-          {/* Global Statistical Aggregates - Premium */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-800/50 backdrop-blur-sm p-4 rounded-xl border border-slate-700 shrink-0">
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Users className="h-2.5 w-2.5" />
-                Members directory
+                Members
               </span>
-              <span className="text-2xl font-sans font-black text-white">
-                {totalMembers}
-              </span>
+              <span className="text-2xl font-sans font-black text-white">{stats.totalMembers}</span>
             </div>
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="h-2.5 w-2.5" />
-                Church events
+                <Database className="h-2.5 w-2.5" />
+                Transactions
               </span>
-              <span className="text-2xl font-sans font-black text-indigo-400">
-                {upcomingEventsCount}
-              </span>
+              <span className="text-2xl font-sans font-black text-indigo-400">{stats.totalFinances}</span>
             </div>
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Newspaper className="h-2.5 w-2.5" />
-                Homepage updates
+                Posts
               </span>
-              <span className="text-2xl font-sans font-black text-sky-400">
-                {broadcastNewsCount}
-              </span>
+              <span className="text-2xl font-sans font-black text-sky-400">{stats.totalPosts}</span>
             </div>
             <div className="px-3 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Landmark className="h-2.5 w-2.5" />
-                Financial vault
+                Vault Balance
               </span>
-              <span
-                className={`text-xl font-sans font-black block truncate mt-1 ${vaultTotal >= 0 ? "text-emerald-400" : "text-rose-400"}`}
-              >
+              <span className={`text-xl font-sans font-black block truncate mt-1 ${vaultTotal >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                 ₱{vaultTotal.toLocaleString()}
               </span>
             </div>
@@ -243,588 +656,709 @@ export default function AdminDashboardUI() {
         </div>
       </div>
 
-      {/* CORE SPLIT SCREEN LAYOUT */}
+      {/* LEFT SIDEBAR NAVIGATION */}
       <div className="flex flex-col lg:flex-row gap-6 min-h-[640px]">
-        {/* LEFT SIDEBAR NAVIGATION - Premium */}
-        <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-          <div className="p-4 flex flex-col h-full">
+        <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 h-fit">
+          <div className="p-4">
             <div className="space-y-1">
               <div className="pb-3 mb-3 border-b border-slate-100 px-2 flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider">
-                  Menu Console
-                </span>
-                <span className="text-[8px] font-mono bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2 py-0.5 rounded-full font-black shadow-sm">
-                  SUPERUSER
-                </span>
+                <span className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider">Menu Console</span>
+                <span className="text-[8px] font-mono bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2 py-0.5 rounded-full font-black shadow-sm">SUPERUSER</span>
               </div>
 
-              {/* Members Button */}
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`group relative w-full flex items-center gap-3 px-4 py-3 text-xs font-extrabold rounded-xl transition-all duration-200 ${
-                  activeTab === "members"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <Users
-                  className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === "members" ? "text-white" : "text-slate-400"}`}
-                />
-                <span className="flex-1 text-left">Members & Users</span>
-                {activeTab === "members" && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                  </div>
-                )}
-              </button>
-
-              {/* Events Button */}
-              <button
-                onClick={() => setActiveTab("events")}
-                className={`group relative w-full flex items-center gap-3 px-4 py-3 text-xs font-extrabold rounded-xl transition-all duration-200 ${
-                  activeTab === "events"
-                    ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-lg shadow-sky-500/25"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <Calendar
-                  className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === "events" ? "text-white" : "text-slate-400"}`}
-                />
-                <span className="flex-1 text-left">Events Schedules</span>
-                {activeTab === "events" && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                  </div>
-                )}
-              </button>
-
-              {/* Updates & Dispatches Button - FIXED */}
-              <button
-                onClick={() => setActiveTab("posts")}
-                className={`group relative w-full flex items-center gap-3 px-4 py-3 text-xs font-extrabold rounded-xl transition-all duration-200 ${
-                  activeTab === "posts"
-                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <BookOpen
-                  className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === "posts" ? "text-white" : "text-slate-400"}`}
-                />
-                <span className="flex-1 text-left">Updates & Dispatches</span>
-                {activeTab === "posts" && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                  </div>
-                )}
-              </button>
-
-              {/* Ledger & Vault Button - FIXED */}
-              <button
-                onClick={() => setActiveTab("finances")}
-                className={`group relative w-full flex items-center gap-3 px-4 py-3 text-xs font-extrabold rounded-xl transition-all duration-200 ${
-                  activeTab === "finances"
-                    ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/25"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <Database
-                  className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === "finances" ? "text-white" : "text-slate-400"}`}
-                />
-                <span className="flex-1 text-left">Ledger & Vault</span>
-                {activeTab === "finances" && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                  </div>
-                )}
-              </button>
+              {[
+                { id: "members", icon: Users, label: "Members & Users", color: "indigo" },
+                { id: "finances", icon: Database, label: "Ledger & Vault", color: "amber" },
+                { id: "posts", icon: BookOpen, label: "Updates & Dispatches", color: "emerald" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group relative w-full flex items-center gap-3 px-4 py-3 text-xs font-extrabold rounded-xl transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? `bg-gradient-to-r from-${tab.color}-600 to-${tab.color === "indigo" ? "purple" : tab.color === "amber" ? "orange" : "teal"}-600 text-white shadow-lg shadow-${tab.color}-500/25`
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <tab.icon className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === tab.id ? "text-white" : "text-slate-400"}`} />
+                  <span className="flex-1 text-left">{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                    </div>
+                  )}
+                </button>
+              ))}
             </div>
 
-            <div className="mt-auto pt-6 mt-6 border-t border-slate-100">
+            <div className="mt-6 pt-4 border-t border-slate-100">
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="h-3.5 w-3.5 text-indigo-600" />
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-indigo-700">
-                    Access Lock
-                  </span>
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-indigo-700">Access Lock</span>
                 </div>
-                <p className="text-[9px] text-slate-500 leading-tight">
-                  Hardware verification active. Offline-sync buffers credentials
-                  securely.
-                </p>
+                <p className="text-[9px] text-slate-500 leading-tight">Hardware verification active. Secure authentication enabled.</p>
                 <div className="mt-2 flex items-center gap-1">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[7px] font-mono text-emerald-600">
-                    SECURE CONNECTION
-                  </span>
+                  <span className="text-[7px] font-mono text-emerald-600">SECURE CONNECTION</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT SYSTEM CONTROL PANEL VIEWPORT - Premium */}
+        {/* RIGHT CONTENT AREA */}
         <div className="flex-1 min-w-0 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-          {/* TAB 1: MEMBERS DIRECTORY */}
+          
+          {/* MEMBERS TAB */}
           {activeTab === "members" && (
             <div className="p-6">
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-sans font-black text-slate-900">Member Registry</h2>
+                  <p className="text-sm text-slate-500">Manage church members and their roles</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingMember(null);
+                    resetMemberForm();
+                    setShowMemberModal(true);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition flex items-center gap-2 shadow-md"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add Member
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                    placeholder="Search members by Email, ID or Full Name..."
+                    placeholder="Search by name, email, or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                   />
                 </div>
-                <div className="flex gap-2">
-                  <select className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
-                    <option>All Security Roles</option>
-                  </select>
-                  <select className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
-                    <option>All Extensions</option>
-                  </select>
-                  <button className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    <span>Register Member</span>
-                  </button>
-                </div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Roles</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Pastor">Pastor</option>
+                  <option value="Secretary">Secretary</option>
+                  <option value="Treasurer">Treasurer</option>
+                  <option value="Member">Member</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Outreach">Outreach</option>
+                </select>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-slate-100 to-slate-50 text-slate-600 font-mono font-bold uppercase tracking-wider border-b-2 border-slate-200">
-                      <th className="p-4">Ref ID</th>
-                      <th className="p-4">Member</th>
-                      <th className="p-4">Extension</th>
-                      <th className="p-4">Role</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {sampleMembers.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="hover:bg-indigo-50/30 transition-colors"
-                      >
-                        <td className="p-4 font-mono text-xs text-slate-500">
-                          {m.id}
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                              {m.firstName[0]}
-                              {m.lastName[0]}
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900">
-                                {m.firstName} {m.lastName}
-                              </div>
-                              <div className="text-xs text-slate-400">
-                                {m.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4 font-medium">{m.extension}</td>
-                        <td className="p-4">
-                          <span
-                            className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${
-                              m.role === "Admin"
-                                ? "bg-red-100 text-red-700"
-                                : m.role === "Pastor"
-                                  ? "bg-indigo-100 text-indigo-700"
-                                  : "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {m.role}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                              m.status === "Active"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-rose-100 text-rose-700"
-                            }`}
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${m.status === "Active" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}
-                            />
-                            {m.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition">
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-6 bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-indigo-600" />
-                    <span className="text-xs font-mono uppercase font-bold text-slate-500 tracking-wider">
-                      Administrative Security Audit Logs
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    ACTIVE VERIFICATION
-                  </span>
-                </div>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {sampleAuditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex justify-between text-xs p-1.5 hover:bg-slate-100 rounded transition"
-                    >
-                      <div className="flex gap-3">
-                        <span className="font-mono text-slate-400">
-                          {log.timestamp}
-                        </span>
-                        <span className="text-slate-700">{log.action}</span>
-                        <span className="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px] font-mono">
-                          {log.target}
-                        </span>
-                      </div>
-                      <span className="text-slate-400 text-[9px] font-mono">
-                        {log.isOnline ? "● SYNCED" : "○ LOCAL"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: EVENTS SCHEDULER */}
-          {activeTab === "events" && (
-            <div className="p-6">
-              <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-lg font-sans font-black text-slate-900">
-                    Chapel Collective Programs
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Verify calendar schedules globally.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm"
-                      placeholder="Find events..."
-                    />
-                  </div>
-                  <select className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-                    <option>All Ministries</option>
-                  </select>
-                </div>
-              </div>
-
+              {/* Members Table */}
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b">
-                      <th className="p-4 text-left">Event</th>
-                      <th className="p-4 text-left">Date & Time</th>
-                      <th className="p-4 text-left">Ministry</th>
-                      <th className="p-4 text-left">Location</th>
-                      <th className="p-4 text-right">Actions</th>
+                      <th className="p-3 text-left">ID</th>
+                      <th className="p-3 text-left">Name</th>
+                      <th className="p-3 text-left">Email</th>
+                      <th className="p-3 text-left">Phone</th>
+                      <th className="p-3 text-left">Role</th>
+                      <th className="p-3 text-left">Status</th>
+                      <th className="p-3 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {sampleEvents.map((e) => (
-                      <tr key={e.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-semibold">{e.title}</td>
-                        <td className="p-4 text-slate-600">
-                          {e.date} • {e.time}
-                        </td>
-                        <td className="p-4">
-                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
-                            {e.ministryType}
-                          </span>
-                        </td>
-                        <td className="p-4">{e.extension}</td>
-                        <td className="p-4 text-right">
-                          <button className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                    {paginatedMembers.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="p-8 text-center text-slate-400">
+                          No members found
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paginatedMembers.map((member) => (
+                        <tr key={member.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-mono text-xs">{member.id}</td>
+                          <td className="p-3 font-medium">{member.firstName} {member.lastName}</td>
+                          <td className="p-3 text-slate-600">{member.emailAdd}</td>
+                          <td className="p-3">{member.phoneNumber}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              member.role === "Admin" ? "bg-red-100 text-red-700" :
+                              member.role === "Pastor" ? "bg-indigo-100 text-indigo-700" :
+                              member.role === "Secretary" ? "bg-blue-100 text-blue-700" :
+                              member.role === "Treasurer" ? "bg-emerald-100 text-emerald-700" :
+                              "bg-slate-100 text-slate-700"
+                            }`}>
+                              {member.role || "Member"}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                              member.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                            }`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${member.status === "Active" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                              {member.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingMember(member);
+                                  setNewMember(member);
+                                  setShowMemberModal(true);
+                                }}
+                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteMember(member.id)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
 
-          {/* TAB 3: UPDATES & DISPATCHES */}
-          {activeTab === "posts" && (
-            <div className="p-6">
-              <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-lg font-sans font-black text-slate-900">
-                    Updates & News Broadcasts
-                  </h2>
+              {/* Pagination */}
+              {Math.ceil(filteredMembers.length / itemsPerPage) > 1 && (
+                <div className="flex justify-between items-center mt-4">
                   <p className="text-sm text-slate-500">
-                    Manage community announcements and dispatches.
+                    Showing {Math.min(filteredMembers.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(currentPage * itemsPerPage, filteredMembers.length)} of {filteredMembers.length}
                   </p>
-                </div>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm"
-                      placeholder="Search posts..."
-                    />
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredMembers.length / itemsPerPage), p + 1))}
+                      disabled={currentPage === Math.ceil(filteredMembers.length / itemsPerPage)}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-semibold text-sm flex items-center gap-2 hover:from-emerald-700 hover:to-teal-700 transition shadow-md">
-                    <Plus className="h-4 w-4" />
-                    Compose Broadcast
-                  </button>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                {samplePosts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="bg-white border rounded-xl p-4 hover:shadow-md transition flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                            p.type === "announcement"
-                              ? "bg-indigo-100 text-indigo-700"
-                              : p.type === "study"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {p.type === "announcement"
-                            ? "Announcement"
-                            : p.type === "study"
-                              ? "Sermon Notes"
-                              : "General"}
-                        </span>
-                        <span className="text-xs text-slate-400">{p.date}</span>
-                      </div>
-                      <h3 className="font-bold text-slate-900">{p.title}</h3>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {p.extension} • {p.active ? "Published" : "Draft"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        className={`p-2 rounded-lg transition ${
-                          p.active
-                            ? "text-amber-600 hover:bg-amber-50"
-                            : "text-emerald-600 hover:bg-emerald-50"
-                        }`}
-                      >
-                        {p.active ? (
-                          <X className="h-4 w-4" />
-                        ) : (
-                          <Check className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 transition">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              )}
             </div>
           )}
 
-          {/* TAB 4: LEDGER & VAULT */}
+          {/* FINANCES TAB */}
           {activeTab === "finances" && (
             <div className="p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-sans font-black text-slate-900">Financial Ledger</h2>
+                  <p className="text-sm text-slate-500">Track offerings, donations, and expenses</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingFinance(null);
+                    resetFinanceForm();
+                    setShowFinanceModal(true);
+                  }}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition flex items-center gap-2 shadow-md"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Transaction
+                </button>
+              </div>
+
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="text-xs text-emerald-600 font-semibold">
-                        Total Tithes
-                      </p>
-                      <p className="text-2xl font-bold text-emerald-700">
-                        ₱{tithesTotal.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="h-10 w-10 rounded-lg bg-emerald-200 flex items-center justify-center">
-                      <ArrowUpRight className="h-5 w-5 text-emerald-700" />
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                  <p className="text-xs text-emerald-600 font-semibold">Offerings</p>
+                  <p className="text-2xl font-bold text-emerald-700">₱{stats.totalOfferings.toLocaleString()}</p>
                 </div>
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="text-xs text-indigo-600 font-semibold">
-                        Donations
-                      </p>
-                      <p className="text-2xl font-bold text-indigo-700">
-                        ₱{donationsTotal.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="h-10 w-10 rounded-lg bg-indigo-200 flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-indigo-700" />
-                    </div>
-                  </div>
+                <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+                  <p className="text-xs text-indigo-600 font-semibold">Donations</p>
+                  <p className="text-2xl font-bold text-indigo-700">₱{stats.totalDonations.toLocaleString()}</p>
                 </div>
-                <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-xl p-4 border border-rose-200">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="text-xs text-rose-600 font-semibold">
-                        Expenses
-                      </p>
-                      <p className="text-2xl font-bold text-rose-700">
-                        ₱{expensesTotal.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="h-10 w-10 rounded-lg bg-rose-200 flex items-center justify-center">
-                      <ArrowDownRight className="h-5 w-5 text-rose-700" />
-                    </div>
-                  </div>
+                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200">
+                  <p className="text-xs text-rose-600 font-semibold">Expenses</p>
+                  <p className="text-2xl font-bold text-rose-700">₱{stats.totalExpenses.toLocaleString()}</p>
                 </div>
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold">
-                        Vault Balance
-                      </p>
-                      <p className="text-2xl font-bold text-emerald-400">
-                        ₱{vaultTotal.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="h-10 w-10 rounded-lg bg-indigo-900 flex items-center justify-center">
-                      <Landmark className="h-5 w-5 text-indigo-400" />
-                    </div>
-                  </div>
+                <div className="bg-slate-800 rounded-xl p-4">
+                  <p className="text-xs text-slate-400 font-semibold">Net Balance</p>
+                  <p className="text-2xl font-bold text-emerald-400">₱{vaultTotal.toLocaleString()}</p>
                 </div>
               </div>
 
               {/* Filters */}
-              <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-                <div>
-                  <h3 className="text-sm font-mono font-bold text-slate-500 uppercase">
-                    Integrated Financial Registers
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Audit transaction sheets and reconcile vaults.
-                  </p>
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by receipt #, description, or contributor..."
+                    value={financeSearch}
+                    onChange={(e) => setFinanceSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                  />
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm"
-                      placeholder="Filter transactions..."
-                    />
-                  </div>
-                  <select className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-                    <option>All Categories</option>
-                  </select>
-                  <select className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-                    <option>All Campuses</option>
-                  </select>
-                </div>
+                <select
+                  value={financeCategoryFilter}
+                  onChange={(e) => setFinanceCategoryFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Categories</option>
+                  <option value="Offering">Offering</option>
+                  <option value="Donation">Donation</option>
+                  <option value="Expense">Expense</option>
+                </select>
               </div>
 
-              {/* Transactions Table */}
+              {/* Finances Table */}
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-amber-50 to-orange-50 border-b">
-                      <th className="p-4 text-left font-bold text-slate-600">
-                        Receipt
-                      </th>
-                      <th className="p-4 text-left font-bold text-slate-600">
-                        Date
-                      </th>
-                      <th className="p-4 text-left font-bold text-slate-600">
-                        Category
-                      </th>
-                      <th className="p-4 text-left font-bold text-slate-600">
-                        Description
-                      </th>
-                      <th className="p-4 text-right font-bold text-slate-600">
-                        Amount
-                      </th>
-                      <th className="p-4 text-right font-bold text-slate-600">
-                        Actions
-                      </th>
+                    <tr className="bg-slate-50 border-b">
+                      <th className="p-3 text-left">Receipt #</th>
+                      <th className="p-3 text-left">Date</th>
+                      <th className="p-3 text-left">Type</th>
+                      <th className="p-3 text-left">Description</th>
+                      <th className="p-3 text-left">Contributor</th>
+                      <th className="p-3 text-right">Amount</th>
+                      <th className="p-3 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {sampleFinances.map((f) => (
-                      <tr
-                        key={f.id}
-                        className="hover:bg-amber-50/30 transition-colors"
-                      >
-                        <td className="p-4 font-mono text-xs">
-                          {f.receiptNumber}
-                        </td>
-                        <td className="p-4">{f.date}</td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              f.category === "tithe"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : f.category === "donation"
-                                  ? "bg-indigo-100 text-indigo-700"
-                                  : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {f.category}
-                          </span>
-                        </td>
-                        <td className="p-4 max-w-xs truncate">
-                          {f.description}
-                        </td>
-                        <td
-                          className={`p-4 text-right font-bold ${f.amount < 0 ? "text-rose-600" : "text-emerald-600"}`}
-                        >
-                          {f.amount < 0 ? "-" : "+"}₱
-                          {Math.abs(f.amount).toLocaleString()}
-                        </td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition">
-                              <Shield className="h-4 w-4" />
-                            </button>
-                            <button className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
+                    {paginatedFinances.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="p-8 text-center text-slate-400">
+                          No transactions found
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paginatedFinances.map((finance) => (
+                        <tr key={finance.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-mono text-xs">{finance.receiptNumber}</td>
+                          <td className="p-3">{finance.date}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              finance.transType === "Offering" ? "bg-emerald-100 text-emerald-700" :
+                              finance.transType === "Donation" ? "bg-indigo-100 text-indigo-700" :
+                              "bg-rose-100 text-rose-700"
+                            }`}>
+                              {finance.transType}
+                            </span>
+                          </td>
+                          <td className="p-3 max-w-xs truncate">{finance.description}</td>
+                          <td className="p-3">{finance.contributorName || "-"}</td>
+                          <td className={`p-3 text-right font-semibold ${finance.amount < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                            {finance.amount < 0 ? "-" : "+"}₱{Math.abs(finance.amount).toLocaleString()}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingFinance(finance);
+                                  setNewFinance({
+                                    ...finance,
+                                    amount: Math.abs(finance.amount),
+                                  });
+                                  setShowFinanceModal(true);
+                                }}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFinance(finance.id)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination */}
+              {Math.ceil(filteredFinances.length / financesPerPage) > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <p className="text-sm text-slate-500">
+                    Showing {Math.min(filteredFinances.length, (financeCurrentPage - 1) * financesPerPage + 1)} - {Math.min(financeCurrentPage * financesPerPage, filteredFinances.length)} of {filteredFinances.length}
+                  </p>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setFinanceCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={financeCurrentPage === 1}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setFinanceCurrentPage(p => Math.min(Math.ceil(filteredFinances.length / financesPerPage), p + 1))}
+                      disabled={financeCurrentPage === Math.ceil(filteredFinances.length / financesPerPage)}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* POSTS TAB */}
+          {activeTab === "posts" && (
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-sans font-black text-slate-900">Updates & Dispatches</h2>
+                  <p className="text-sm text-slate-500">Manage homepage announcements and news</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingPost(null);
+                    resetPostForm();
+                    setShowPostModal(true);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition flex items-center gap-2 shadow-md"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Post
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search posts by title..."
+                    value={postSearch}
+                    onChange={(e) => setPostSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <select
+                  value={postCategoryFilter}
+                  onChange={(e) => setPostCategoryFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Categories</option>
+                  <option value="news">News</option>
+                  <option value="announcement">Announcement</option>
+                  <option value="study">Bible Study</option>
+                  <option value="event">Event</option>
+                  <option value="featured">Featured</option>
+                </select>
+              </div>
+
+              {/* Posts Grid */}
+              <div className="grid grid-cols-1 gap-4">
+                {filteredPosts.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 border rounded-xl">
+                    No posts found
+                  </div>
+                ) : (
+                  filteredPosts.map((post) => (
+                    <div key={post.id} className="border rounded-xl p-4 hover:shadow-md transition">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              post.category === "urgent" ? "bg-rose-100 text-rose-700" :
+                              post.category === "featured" ? "bg-amber-100 text-amber-700" :
+                              "bg-indigo-100 text-indigo-700"
+                            }`}>
+                              {post.category}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {new Date(post.created_at).toLocaleDateString()}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${post.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                              {post.active ? "Published" : "Draft"}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-slate-900">{post.title}</h3>
+                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">{post.content}</p>
+                          <p className="text-xs text-slate-400 mt-2">{post.affiliation} • {post.summary?.substring(0, 100)}</p>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleTogglePostStatus(post)}
+                            className={`p-2 rounded-lg transition ${
+                              post.active ? "text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:bg-emerald-50"
+                            }`}
+                          >
+                            {post.active ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingPost(post);
+                              setNewPost(post);
+                              setShowPostModal(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePost(post.id)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* MEMBER MODAL */}
+      {showMemberModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-bold">{editingMember ? "Edit Member" : "Add Member"}</h2>
+              <button onClick={() => setShowMemberModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={editingMember ? handleUpdateMember : handleAddMember} className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">First Name *</label>
+                  <input type="text" required value={newMember.firstName} onChange={(e) => setNewMember({ ...newMember, firstName: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Last Name *</label>
+                  <input type="text" required value={newMember.lastName} onChange={(e) => setNewMember({ ...newMember, lastName: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Email</label>
+                <input type="email" value={newMember.emailAdd} onChange={(e) => setNewMember({ ...newMember, emailAdd: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Phone</label>
+                <input type="text" value={newMember.phoneNumber} onChange={(e) => setNewMember({ ...newMember, phoneNumber: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Birth Date</label>
+                  <input type="date" value={newMember.birthDate} onChange={(e) => setNewMember({ ...newMember, birthDate: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Join Date</label>
+                  <input type="date" value={newMember.joinDate} onChange={(e) => setNewMember({ ...newMember, joinDate: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Role</label>
+                  <select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="Member">Member</option>
+                    <option value="Pastor">Pastor</option>
+                    <option value="Secretary">Secretary</option>
+                    <option value="Treasurer">Treasurer</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Status</label>
+                  <select value={newMember.status} onChange={(e) => setNewMember({ ...newMember, status: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Outreach">Outreach</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Notes</label>
+                <textarea value={newMember.notes} onChange={(e) => setNewMember({ ...newMember, notes: e.target.value })} rows="3"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={() => setShowMemberModal(false)} className="flex-1 py-2 border rounded-lg text-sm">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold">
+                  {editingMember ? "Save Changes" : "Add Member"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FINANCE MODAL */}
+      {showFinanceModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-bold">{editingFinance ? "Edit Transaction" : "Add Transaction"}</h2>
+              <button onClick={() => setShowFinanceModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={editingFinance ? handleUpdateFinance : handleAddFinance} className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Transaction Type *</label>
+                  <select value={newFinance.transType} onChange={(e) => setNewFinance({ ...newFinance, transType: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="Offering">Offering</option>
+                    <option value="Donation">Donation</option>
+                    <option value="Expense">Expense</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Amount *</label>
+                  <input type="number" required value={newFinance.amount} onChange={(e) => setNewFinance({ ...newFinance, amount: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Date *</label>
+                  <input type="date" required value={newFinance.date} onChange={(e) => setNewFinance({ ...newFinance, date: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Contributor Name</label>
+                  <input type="text" value={newFinance.contributorName} onChange={(e) => setNewFinance({ ...newFinance, contributorName: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Contributor Email</label>
+                <input type="email" value={newFinance.contributorEmailAdd} onChange={(e) => setNewFinance({ ...newFinance, contributorEmailAdd: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Description *</label>
+                <textarea required value={newFinance.description} onChange={(e) => setNewFinance({ ...newFinance, description: e.target.value })} rows="3"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Transaction description..." />
+              </div>
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={() => setShowFinanceModal(false)} className="flex-1 py-2 border rounded-lg text-sm">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold">
+                  {editingFinance ? "Save Changes" : "Add Transaction"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* POST MODAL */}
+      {showPostModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-bold">{editingPost ? "Edit Post" : "Create Post"}</h2>
+              <button onClick={() => setShowPostModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={editingPost ? handleUpdatePost : handleAddPost} className="p-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Title *</label>
+                <input type="text" required value={newPost.title} onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Category</label>
+                  <select value={newPost.category} onChange={(e) => setNewPost({ ...newPost, category: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="news">News</option>
+                    <option value="announcement">Announcement</option>
+                    <option value="study">Bible Study</option>
+                    <option value="event">Event</option>
+                    <option value="featured">Featured</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Affiliation</label>
+                  <select value={newPost.affiliation} onChange={(e) => setNewPost({ ...newPost, affiliation: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="Global">Global</option>
+                    <option value="Naga">Naga</option>
+                    <option value="Pinamungajan">Pinamungajan</option>
+                    <option value="Samar">Samar</option>
+                    <option value="Dulag">Dulag</option>
+                    <option value="Aloguinsan">Aloguinsan</option>
+                    <option value="Mandaue">Mandaue</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Image Banner URL</label>
+                <input type="text" value={newPost.imageBanner} onChange={(e) => setNewPost({ ...newPost, imageBanner: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="https://..." />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Summary *</label>
+                <textarea required value={newPost.summary} onChange={(e) => setNewPost({ ...newPost, summary: e.target.value })} rows="2"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Short summary..." />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Content *</label>
+                <textarea required value={newPost.content} onChange={(e) => setNewPost({ ...newPost, content: e.target.value })} rows="5"
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Full content..." />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Additional Images (comma separated)</label>
+                <input type="text" value={newPost.images} onChange={(e) => setNewPost({ ...newPost, images: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="https://image1.jpg, https://image2.jpg" />
+              </div>
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 py-2 border rounded-lg text-sm">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold">
+                  {editingPost ? "Save Changes" : "Publish Post"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

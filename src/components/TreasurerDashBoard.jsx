@@ -35,17 +35,42 @@ import {
 
 export default function TreaseurerDashBoard({ userData, session }) {
   const [successMemo, setSuccessMemo] = useState("");
+   const [errorMemo, setErrorMemo] = useState("");
 
   const [finances, setFinances] = useState([]);
+  const [members, setMembers] = useState([]);
+
+  // Search and Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("latest");
 
   // Custom states added for Edit mode and Pagination
   const [editingRecord, setEditingRecord] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
+  
+  // Fetch members for autofill dropdown
+  const fetchMembers = async () => {
+    const { data, error } = await supabase
+      .from("members")
+      .select("*")
+      .eq("churchID", userData.churches.id);
+    if (!error && data) {
+      setMembers(data);
+    }
+  }; 
+
   useEffect(() => {
     fetchFinances();
+    fetchMembers();
   }, []);
+
+   // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, sortBy]);
 
   useEffect(() => {
     const channel = supabase
@@ -107,13 +132,8 @@ export default function TreaseurerDashBoard({ userData, session }) {
 
   // 1. Transaction Form State
   const [showFormModal, setShowFormModal] = useState(false);
-  //const [amount, setAmount] = useState("");
   const [transType, setTransType] = useState("Offering"); // no union type, just string
-  //const [date, setDate] = useState("2026-06-01");
-  //const [description, setDescription] = useState("");
-  //const [churchID, setChurchID] = useState(userData.churches.id);
-  //const [contributorName, setContributorName] = useState("");
-  //const [contributorEmail, setContributorEmail] = useState("");
+
 
   // State of creating a Finance record
   const [newFinance, setNewFinance] = useState({
@@ -132,12 +152,54 @@ export default function TreaseurerDashBoard({ userData, session }) {
   // 2. Receipt Display Overlay State
   const [activeReceipt, setActiveReceipt] = useState(null);
 
+// Filter and Sort Finances
+  const filteredFinances = useMemo(() => {
+    let filtered = [...finances];
+
+    // Apply search filter
+    if (searchTerm.trim() !== "") {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((f) => {
+        const receiptStr = f.receiptNumber ? String(f.receiptNumber).toLowerCase() : "";
+        const descriptionStr = f.description ? f.description.toLowerCase() : "";
+        const contributorStr = f.contributorName ? f.contributorName.toLowerCase() : "";
+        
+        return (
+          receiptStr.includes(searchLower) ||
+          descriptionStr.includes(searchLower) ||
+          contributorStr.includes(searchLower)
+        );
+      });
+    }
+
+    // Apply category filter
+    if (categoryFilter !== "All") {
+      filtered = filtered.filter((f) => f.transType === categoryFilter);
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "latest") {
+        return new Date(b.date) - new Date(a.date);
+      } else if (sortBy === "oldest") {
+        return new Date(a.date) - new Date(b.date);
+      } else if (sortBy === "amountHigh") {
+        return Math.abs(b.amount) - Math.abs(a.amount);
+      } else if (sortBy === "amountLow") {
+        return Math.abs(a.amount) - Math.abs(b.amount);
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [finances, searchTerm, categoryFilter, sortBy]);
+
   const totalPages = Math.ceil(finances.length / itemsPerPage);
 
   const paginatedFinances = useMemo(() => {
     const offset = (currentPage - 1) * itemsPerPage;
-    return finances.slice(offset, offset + itemsPerPage);
-  }, [finances, currentPage]);
+    return filteredFinances.slice(offset, offset + itemsPerPage);
+  }, [filteredFinances, currentPage]);
 
   // Aggregate local branch statistics
   const localStats = useMemo(() => {
@@ -173,15 +235,18 @@ export default function TreaseurerDashBoard({ userData, session }) {
       contributorEmailAdd: "",
     });
   };
+
   // Autofill donor guidelines if selected from church member dropdown list
-  const handleSelectMemberContributor = (emailVal) => {
-    const match = members.find((m) => m.email === emailVal);
+ const handleSelectMemberContributor = (memberId) => {
+    const match = members.find((m) => m.id === memberId);
     if (match) {
-      setContributorName(`${match.firstName} ${match.lastName}`);
-      setContributorEmail(match.email);
+      setNewFinance({
+        ...newFinance,
+        contributorName: `${match.firstName} ${match.lastName}`,
+        contributorEmailAdd: match.emailAdd,
+      });
     }
   };
-
   // Trigger transaction edit form
   const triggerEditFinance = (record) => {
     setEditingRecord(record);
@@ -193,6 +258,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
       description: record.description,
       contributorName: record.contributorName,
       contributorEmailAdd: record.contributorEmailAdd,
+
     });
 
     setShowFormModal(true);
@@ -241,6 +307,8 @@ export default function TreaseurerDashBoard({ userData, session }) {
         return;
       }
       fetchFinances();
+      setSuccessMemo(`Ledger adjusted with ${serialToken}! Receipt generated!`);
+      setActiveReceipt({ ...financeData, amount: adjustedAmount, receiptNumber: serialToken });
     } else {
       console.log("Updates", newFinance);
       const { error } = await supabase
@@ -254,20 +322,19 @@ export default function TreaseurerDashBoard({ userData, session }) {
       }
       fetchFinances();
       setSuccessMemo(
-        `Successfully updated registry files for ${newFinance.receiptNumber}.`,
+        `Successfully updated registry files for ${serialToken}.`,
       );
     }
     setShowFormModal(false);
 
-    setSuccessMemo(
-      editingRecord
-        ? `Receipt ${serialToken} updated successfully!`
-        : `Ledger adjusted with ${serialToken}! Receipt generated!`,
-    );
+    // setSuccessMemo(
+    //   editingRecord
+    //     ? `Receipt ${serialToken} updated successfully!`
+    //     : `Ledger adjusted with ${serialToken}! Receipt generated!`,
+    // );
+    setShowFormModal(false);
     setTimeout(() => setSuccessMemo(""), 4500);
-
-    // Immediately open the newly generated dynamic official receipt
-    setActiveReceipt(newFinance);
+    setTimeout(() => setErrorMemo(""), 4500);
   };
   return (
     <div className="space-y-6" id="treasurer-dashboard-view">
@@ -374,6 +441,13 @@ export default function TreaseurerDashBoard({ userData, session }) {
               Recall New Receipt
             </button>
           )}
+        </div>
+      )}
+
+      {errorMemo && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+          <span>{errorMemo}</span>
         </div>
       )}
 
@@ -606,7 +680,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
                   Vault General Ledger
                 </h2>
                 <span className="text-[9px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-mono font-bold">
-                  {userData.churches.name || ""} Church
+                  {userData?.churches?.name || ""} Church
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-sans ml-10">
@@ -618,7 +692,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
             <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-1.5">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[9px] font-mono text-slate-600">
-                {finances.length} Total Transactions
+                {filteredFinances.length} Total Transactions
               </span>
             </div>
           </div>
@@ -632,24 +706,37 @@ export default function TreaseurerDashBoard({ userData, session }) {
               <input
                 type="text"
                 placeholder="Search by receipt number, description, or contributor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none bg-slate-50 hover:bg-white transition"
               />
             </div>
             <div className="flex gap-2">
-              <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none cursor-pointer">
-                <option>All Categories</option>
-                <option>Offering</option>
-                <option>Donation</option>
-                <option>Expense</option>
+              <select 
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none cursor-pointer">
+                <option value="All">All Categories</option>
+                <option value="Offering">Offering</option>
+                <option value="Donation">Donation</option>
+                <option value="Expense">Expense</option>
               </select>
-              <select className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none cursor-pointer">
-                <option>Sort by: Latest</option>
-                <option>Sort by: Oldest</option>
-                <option>Sort by: Amount (High-Low)</option>
-                <option>Sort by: Amount (Low-High)</option>
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none cursor-pointer">
+                <option value="latest">Sort by: Latest</option>
+                <option value="oldest">Sort by: Oldest</option>
+                <option value="amountHigh">Sort by: Amount (High-Low)</option>
+                <option value="amountLow">Sort by: Amount (Low-High)</option>
               </select>
             </div>
           </div>
+          {searchTerm && (
+            <div className="mt-2 text-xs text-slate-500">
+              Found {filteredFinances.length} result{filteredFinances.length !== 1 ? "s" : ""} for "{searchTerm}"
+            </div>
+          )}
         </div>
 
         {/* Table Section */}
@@ -674,7 +761,7 @@ export default function TreaseurerDashBoard({ userData, session }) {
                         <FileSpreadsheet className="h-8 w-8 text-slate-300" />
                       </div>
                       <p className="text-sm text-slate-400 italic font-sans">
-                        No ledger transactions identified.
+                          {searchTerm ? `No transactions found matching "${searchTerm}"` : "No ledger transactions identified."}
                       </p>
                       <button
                         onClick={() => triggerAddFinance?.()}
@@ -1100,7 +1187,9 @@ export default function TreaseurerDashBoard({ userData, session }) {
                       id="quick-giver-autofill"
                     >
                       <option value="">-- Choose Giver to Autofill --</option>
-                      {/* Map members here */}
+                         {members.map((m) => (
+                        <option key={m.id} value={m.id}>{m.firstName} {m.lastName} ({m.emailAdd})</option>
+                      ))}
                     </select>
                   </div>
 
