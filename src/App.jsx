@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import LoginModule from "./components/LoginModule";
 import AdminDashboard from "./components/AdminDashboard";
+import ModeratorDashboard from "./components/ModeratorDashBoard";
 import UserProfileDashboard from "./components/UserProfileDashboard";
 import SecretaryDashBoard from "./components/SecretaryDashBoard";
 import TreaseurerDashBoard from "./components/TreasurerDashBoard";
@@ -563,6 +564,7 @@ export default function App() {
                     <LayoutDashboard className="h-4 w-4" />
                     <span>
                         {userRole === "Admin" && "Admin Desk"}
+                        {userRole === "Moderator" && "Moderator Desk"}
                         {userRole === "Secretary" && "Secretary Desk"}
                         {userRole === "Treasurer" && "Treasurer Desk"}
                         {userRole === "User" && "Member Desk"}
@@ -1498,6 +1500,9 @@ export default function App() {
                   //onUpdateMember={handleUpdateMember}
                   //onDeleteMember={handleDeleteMember}
                   />
+                )}
+                {userRole === "Moderator" && (
+                  <ModeratorDashboard userData={userData} session={session}/>
                 )}
 
                 {userRole === "Secretary" && (

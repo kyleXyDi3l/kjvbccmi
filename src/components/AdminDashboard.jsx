@@ -34,6 +34,13 @@ import {
   DollarSign,
   Receipt,
   Tag,
+  Clock,
+  ThumbsUp,
+  ThumbsDown,
+  FileText,
+  Download,
+  Building2,
+  User as UserIcon,
 } from "lucide-react";
 import { supabase } from "../supabase-client";
 
@@ -45,11 +52,24 @@ export default function AdminDashboard({ userData, session }) {
 
   // Members State
   const [members, setMembers] = useState([]);
+  const [churches, setChurches] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [churchFilter, setChurchFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Pending Approvals State (members with status = 4 - Approved by Moderator)
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [approvalSearchTerm, setApprovalSearchTerm] = useState("");
+  const [approvalChurchFilter, setApprovalChurchFilter] = useState("All");
+  const [approvalCurrentPage, setApprovalCurrentPage] = useState(1);
+  const approvalsPerPage = 10;
+
+  // Member Detail Modal State
+  const [showMemberDetailModal, setShowMemberDetailModal] = useState(false);
+  const [selectedMemberDetail, setSelectedMemberDetail] = useState(null);
 
   // Member Modal State
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -109,6 +129,7 @@ export default function AdminDashboard({ userData, session }) {
     totalOfferings: 0,
     totalDonations: 0,
     totalExpenses: 0,
+    pendingApprovals: 0,
   });
 
   // Fetch all data
@@ -119,30 +140,167 @@ export default function AdminDashboard({ userData, session }) {
   // Update stats when data changes
   useEffect(() => {
     calculateStats();
-  }, [members, finances, posts]);
+  }, [members, finances, posts, pendingApprovals]);
 
   const fetchAllData = async () => {
     setLoading(true);
     await Promise.all([
       fetchMembers(),
+      fetchChurches(),
+      fetchPendingApprovals(),
       fetchFinances(),
       fetchPosts(),
     ]);
     setLoading(false);
   };
 
+  // ==================== CHURCHES ====================
+  const fetchChurches = async () => {
+    const { data, error } = await supabase
+      .from("churches")
+      .select("*")
+      .order("name");
+
+    if (error) {
+      console.error("Error fetching churches:", error);
+    } else {
+      setChurches(data || []);
+    }
+  };
+
+  // ==================== PENDING APPROVALS (Status = 4 - Approved by Moderator) ====================
+  const fetchPendingApprovals = async () => {
+    const { data, error } = await supabase
+      .from("members")
+      .select(`
+        *,
+        churches(id, name),
+        members_status!members_statusId_fkey(id, status)
+      `)
+      .eq("statusId", 12) // 4 = Approved by Moderator, waiting for Admin final approval
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching pending approvals:", error);
+    } else {
+      const transformedData = data?.map(member => ({
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        emailAdd: member.emailAdd,
+        phoneNumber: member.phoneNumber,
+        birthDate: member.birthDate,
+        joinDate: member.joinDate,
+        notes: member.notes,
+        profilePic: member.profilePic,
+        role: member.role,
+        churchId: member.churchID,
+        churchName: member.churches?.name,
+        statusId: member.status,
+        status: member.members_status?.status,
+        formPdfUrl: member.formPdfUrl,
+        reviewNotes: member.reviewNotes,
+        rejectedReason: member.rejectedReason,
+        createdAt: member.created_at,
+        createdBy: member.createdBy,
+      })) || [];
+      setPendingApprovals(transformedData);
+    }
+  };
+
+  // Approve member application (set to Active status)
+  const handleApproveApplication = async (member) => {
+    if (!confirm(`Approve ${member.firstName} ${member.lastName}'s application? This will activate their membership.`)) return;
+
+    setLoading(true);
+    const { error } = await supabase
+      .from("members")
+      .update({ 
+        statusId: 14, // 6 = Active
+        reviewed_by: session?.user?.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", member.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg(`${member.firstName} ${member.lastName} has been approved and activated.`);
+      await fetchPendingApprovals();
+      await fetchMembers();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
+  // Reject application (send back to secretary for correction)
+  const handleRejectApplication = async (member) => {
+    const reason = prompt("Please provide a reason for rejection (will be sent to secretary):");
+    if (!reason) return;
+
+    setLoading(true);
+    const { error } = await supabase
+      .from("members")
+      .update({ 
+        statusId: 13, // 5 = Rejected in Review - goes back to secretary
+        rejected_reason: reason,
+        reviewed_by: session?.user?.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", member.id);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setSuccessMsg(`${member.firstName} ${member.lastName}'s application has been rejected and sent back to secretary.`);
+      await fetchPendingApprovals();
+      await fetchMembers();
+    }
+    setLoading(false);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
+  };
+
   // ==================== MEMBERS CRUD ====================
   const fetchMembers = async () => {
     const { data, error } = await supabase
       .from("members")
-      .select("*")
+      .select(`
+        *,
+        churches(id, name),
+        members_status!members_statusId_fkey(id, status)
+      `)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching members:", error);
       setErrorMsg("Failed to load members");
     } else {
-      setMembers(data || []);
+      const transformedData = data?.map(member => ({
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        emailAdd: member.emailAdd,
+        phoneNumber: member.phoneNumber,
+        birthDate: member.birthDate,
+        joinDate: member.joinDate,
+        notes: member.notes,
+        profilePic: member.profilePic,
+        role: member.role,
+        churchId: member.churchID,
+        churchName: member.churches?.name,
+        statusId: member.status,
+        status: member.members_status?.status,
+        formPdfUrl: member.formPdfUrl,
+        createdAt: member.created_at,
+        createdBy: member.createdBy,
+      })) || [];
+      setMembers(transformedData);
     }
   };
 
@@ -153,7 +311,8 @@ export default function AdminDashboard({ userData, session }) {
     const memberData = {
       ...newMember,
       createdBy: session?.user?.id,
-      churchID: userData?.churches?.id || 1,
+      churchID: newMember.churchID,
+      status: 6, // Active status
     };
 
     const { error } = await supabase.from("members").insert([memberData]);
@@ -209,6 +368,7 @@ export default function AdminDashboard({ userData, session }) {
     } else {
       setSuccessMsg("Member deleted successfully!");
       await fetchMembers();
+      await fetchPendingApprovals();
     }
     setLoading(false);
     setTimeout(() => {
@@ -224,7 +384,7 @@ export default function AdminDashboard({ userData, session }) {
       emailAdd: "",
       phoneNumber: "",
       birthDate: "",
-      churchID: userData?.churches?.id || 1,
+      churchID: churches[0]?.id || 1,
       status: "Active",
       joinDate: new Date().toISOString().split("T")[0],
       notes: "",
@@ -472,12 +632,13 @@ export default function AdminDashboard({ userData, session }) {
       .reduce((sum, f) => sum + Math.abs(f.amount), 0);
 
     setStats({
-      totalMembers: members.length,
+      totalMembers: members.filter(m => m.statusId === 6).length, // Only active members
       totalFinances: finances.length,
       totalPosts: posts.length,
       totalOfferings,
       totalDonations,
       totalExpenses,
+      pendingApprovals: pendingApprovals.length,
     });
   };
 
@@ -504,14 +665,42 @@ export default function AdminDashboard({ userData, session }) {
     if (statusFilter !== "All") {
       filtered = filtered.filter(m => m.status === statusFilter);
     }
+
+    if (churchFilter !== "All") {
+      filtered = filtered.filter(m => m.churchId === parseInt(churchFilter));
+    }
     
     return filtered;
-  }, [members, searchTerm, roleFilter, statusFilter]);
+  }, [members, searchTerm, roleFilter, statusFilter, churchFilter]);
 
   const paginatedMembers = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredMembers.slice(start, start + itemsPerPage);
   }, [filteredMembers, currentPage]);
+
+  const filteredApprovals = useMemo(() => {
+    let filtered = [...pendingApprovals];
+    
+    if (approvalSearchTerm) {
+      const term = approvalSearchTerm.toLowerCase();
+      filtered = filtered.filter(m =>
+        m.firstName?.toLowerCase().includes(term) ||
+        m.lastName?.toLowerCase().includes(term) ||
+        m.emailAdd?.toLowerCase().includes(term)
+      );
+    }
+
+    if (approvalChurchFilter !== "All") {
+      filtered = filtered.filter(m => m.churchId === parseInt(approvalChurchFilter));
+    }
+    
+    return filtered;
+  }, [pendingApprovals, approvalSearchTerm, approvalChurchFilter]);
+
+  const paginatedApprovals = useMemo(() => {
+    const start = (approvalCurrentPage - 1) * approvalsPerPage;
+    return filteredApprovals.slice(start, start + approvalsPerPage);
+  }, [filteredApprovals, approvalCurrentPage]);
 
   const filteredFinances = useMemo(() => {
     let filtered = [...finances];
@@ -558,11 +747,15 @@ export default function AdminDashboard({ userData, session }) {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, roleFilter, statusFilter]);
+  }, [searchTerm, roleFilter, statusFilter, churchFilter]);
 
   useEffect(() => {
     setFinanceCurrentPage(1);
   }, [financeSearch, financeCategoryFilter]);
+
+  useEffect(() => {
+    setApprovalCurrentPage(1);
+  }, [approvalSearchTerm, approvalChurchFilter]);
 
   if (loading && members.length === 0 && finances.length === 0 && posts.length === 0) {
     return (
@@ -625,16 +818,16 @@ export default function AdminDashboard({ userData, session }) {
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Users className="h-2.5 w-2.5" />
-                Members
+                Active Members
               </span>
               <span className="text-2xl font-sans font-black text-white">{stats.totalMembers}</span>
             </div>
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                <Database className="h-2.5 w-2.5" />
-                Transactions
+                <Clock className="h-2.5 w-2.5" />
+                Pending Approvals
               </span>
-              <span className="text-2xl font-sans font-black text-indigo-400">{stats.totalFinances}</span>
+              <span className="text-2xl font-sans font-black text-amber-400">{stats.pendingApprovals}</span>
             </div>
             <div className="px-3 border-r border-slate-700 text-left">
               <span className="block text-[8px] font-mono text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
@@ -667,6 +860,7 @@ export default function AdminDashboard({ userData, session }) {
               </div>
 
               {[
+                { id: "approvals", icon: Clock, label: "Member Approvals", color: "amber" },
                 { id: "members", icon: Users, label: "Members & Users", color: "indigo" },
                 { id: "finances", icon: Database, label: "Ledger & Vault", color: "amber" },
                 { id: "posts", icon: BookOpen, label: "Updates & Dispatches", color: "emerald" },
@@ -686,6 +880,9 @@ export default function AdminDashboard({ userData, session }) {
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                     </div>
+                  )}
+                  {tab.id === "approvals" && stats.pendingApprovals > 0 && (
+                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                   )}
                 </button>
               ))}
@@ -710,7 +907,162 @@ export default function AdminDashboard({ userData, session }) {
         {/* RIGHT CONTENT AREA */}
         <div className="flex-1 min-w-0 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           
-          {/* MEMBERS TAB */}
+          {/* MEMBER APPROVALS TAB */}
+          {activeTab === "approvals" && (
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-sans font-black text-slate-900">Member Applications Approval</h2>
+                  <p className="text-sm text-slate-500">Review and approve member applications that have passed moderator review</p>
+                </div>
+                <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-full">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-700">{filteredApprovals.length} Pending Approval</span>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={approvalSearchTerm}
+                    onChange={(e) => setApprovalSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <select
+                  value={approvalChurchFilter}
+                  onChange={(e) => setApprovalChurchFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Churches</option>
+                  {churches.map((church) => (
+                    <option key={church.id} value={church.id}>{church.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Approvals Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b">
+                      <th className="p-3 text-left">Name</th>
+                      <th className="p-3 text-left">Email</th>
+                      <th className="p-3 text-left">Church</th>
+                      <th className="p-3 text-left">Submitted</th>
+                      <th className="p-3 text-left">Application Form</th>
+                      <th className="p-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {paginatedApprovals.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="p-8 text-center text-slate-400">
+                          No pending approvals found
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedApprovals.map((member) => (
+                        <tr key={member.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-medium">
+                            <div className="flex items-center gap-2">
+                              {member.profilePic ? (
+                                <img src={member.profilePic} alt="" className="h-8 w-8 rounded-full object-cover" />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold">
+                                  {member.firstName?.[0]}{member.lastName?.[0]}
+                                </div>
+                              )}
+                              <div>
+                                <span>{member.firstName} {member.lastName}</span>
+                                <button
+                                  onClick={() => {
+                                    setSelectedMemberDetail(member);
+                                    setShowMemberDetailModal(true);
+                                  }}
+                                  className="ml-2 text-indigo-600 hover:text-indigo-800 text-xs"
+                                >
+                                  <Eye className="h-3 w-3 inline" /> View Details
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3 text-slate-600">{member.emailAdd}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
+                              {member.churchName}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-500 text-xs">
+                            {new Date(member.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="p-3">
+                            {member.formPdfUrl ? (
+                              <a href={member.formPdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800">
+                                <FileText className="h-4 w-4" />
+                                <span className="text-xs">View Form</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-xs">No form</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleApproveApplication(member)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg text-xs font-semibold transition-all duration-200"
+                              >
+                                <ThumbsUp className="h-3.5 w-3.5" />
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectApplication(member)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg text-xs font-semibold transition-all duration-200"
+                              >
+                                <ThumbsDown className="h-3.5 w-3.5" />
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {Math.ceil(filteredApprovals.length / approvalsPerPage) > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <p className="text-sm text-slate-500">
+                    Showing {Math.min(filteredApprovals.length, (approvalCurrentPage - 1) * approvalsPerPage + 1)} - {Math.min(approvalCurrentPage * approvalsPerPage, filteredApprovals.length)} of {filteredApprovals.length}
+                  </p>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setApprovalCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={approvalCurrentPage === 1}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setApprovalCurrentPage(p => Math.min(Math.ceil(filteredApprovals.length / approvalsPerPage), p + 1))}
+                      disabled={approvalCurrentPage === Math.ceil(filteredApprovals.length / approvalsPerPage)}
+                      className="p-2 border rounded-lg disabled:opacity-50"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MEMBERS TAB - Updated with Church Filter and View Details */}
           {activeTab === "members" && (
             <div className="p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -731,7 +1083,7 @@ export default function AdminDashboard({ userData, session }) {
                 </button>
               </div>
 
-              {/* Filters */}
+              {/* Filters - Added Church Filter */}
               <div className="flex flex-col sm:flex-row gap-3 mb-6">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -743,6 +1095,16 @@ export default function AdminDashboard({ userData, session }) {
                     className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                   />
                 </div>
+                <select
+                  value={churchFilter}
+                  onChange={(e) => setChurchFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                >
+                  <option value="All">All Churches</option>
+                  {churches.map((church) => (
+                    <option key={church.id} value={church.id}>{church.name}</option>
+                  ))}
+                </select>
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
@@ -776,6 +1138,7 @@ export default function AdminDashboard({ userData, session }) {
                       <th className="p-3 text-left">Name</th>
                       <th className="p-3 text-left">Email</th>
                       <th className="p-3 text-left">Phone</th>
+                      <th className="p-3 text-left">Church</th>
                       <th className="p-3 text-left">Role</th>
                       <th className="p-3 text-left">Status</th>
                       <th className="p-3 text-center">Actions</th>
@@ -784,7 +1147,7 @@ export default function AdminDashboard({ userData, session }) {
                   <tbody className="divide-y">
                     {paginatedMembers.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="p-8 text-center text-slate-400">
+                        <td colSpan="8" className="p-8 text-center text-slate-400">
                           No members found
                         </td>
                       </tr>
@@ -792,9 +1155,36 @@ export default function AdminDashboard({ userData, session }) {
                       paginatedMembers.map((member) => (
                         <tr key={member.id} className="hover:bg-slate-50">
                           <td className="p-3 font-mono text-xs">{member.id}</td>
-                          <td className="p-3 font-medium">{member.firstName} {member.lastName}</td>
+                          <td className="p-3 font-medium">
+                            <div className="flex items-center gap-2">
+                              {member.profilePic ? (
+                                <img src={member.profilePic} alt="" className="h-8 w-8 rounded-full object-cover" />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                  {member.firstName?.[0]}{member.lastName?.[0]}
+                                </div>
+                              )}
+                              <div>
+                                <span>{member.firstName} {member.lastName}</span>
+                                <button
+                                  onClick={() => {
+                                    setSelectedMemberDetail(member);
+                                    setShowMemberDetailModal(true);
+                                  }}
+                                  className="ml-2 text-indigo-600 hover:text-indigo-800 text-xs"
+                                >
+                                  <Eye className="h-3 w-3 inline" /> View Details
+                                </button>
+                              </div>
+                            </div>
+                          </td>
                           <td className="p-3 text-slate-600">{member.emailAdd}</td>
                           <td className="p-3">{member.phoneNumber}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
+                              {member.churchName}
+                            </span>
+                          </td>
                           <td className="p-3">
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                               member.role === "Admin" ? "bg-red-100 text-red-700" :
@@ -808,7 +1198,9 @@ export default function AdminDashboard({ userData, session }) {
                           </td>
                           <td className="p-3">
                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                              member.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                              member.status === "Active" ? "bg-emerald-100 text-emerald-700" : 
+                              member.status === "Inactive" ? "bg-rose-100 text-rose-700" :
+                              "bg-amber-100 text-amber-700"
                             }`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${member.status === "Active" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
                               {member.status}
@@ -1143,6 +1535,119 @@ export default function AdminDashboard({ userData, session }) {
         </div>
       </div>
 
+      {/* MEMBER DETAIL MODAL */}
+      {showMemberDetailModal && selectedMemberDetail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <UserIcon className="h-4 w-4 text-indigo-600" />
+                </div>
+                <h2 className="text-lg font-bold">Member Details</h2>
+              </div>
+              <button onClick={() => setShowMemberDetailModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Profile Header */}
+              <div className="flex items-center gap-4 pb-4 border-b">
+                {selectedMemberDetail.profilePic ? (
+                  <img src={selectedMemberDetail.profilePic} alt="" className="h-20 w-20 rounded-full object-cover" />
+                ) : (
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-2xl font-bold">
+                    {selectedMemberDetail.firstName?.[0]}{selectedMemberDetail.lastName?.[0]}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">{selectedMemberDetail.firstName} {selectedMemberDetail.lastName}</h3>
+                  <p className="text-slate-500">{selectedMemberDetail.role || "Member"} • {selectedMemberDetail.churchName}</p>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold mt-1 ${
+                    selectedMemberDetail.status === "Active" ? "bg-emerald-100 text-emerald-700" : 
+                    selectedMemberDetail.status === "Inactive" ? "bg-rose-100 text-rose-700" :
+                    "bg-amber-100 text-amber-700"
+                  }`}>
+                    {selectedMemberDetail.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Email Address</p>
+                  <p className="text-sm font-medium text-slate-800">{selectedMemberDetail.emailAdd}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Phone Number</p>
+                  <p className="text-sm font-medium text-slate-800">{selectedMemberDetail.phoneNumber || "Not provided"}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Birth Date</p>
+                  <p className="text-sm font-medium text-slate-800">{selectedMemberDetail.birthDate || "Not provided"}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500">Join Date</p>
+                  <p className="text-sm font-medium text-slate-800">{selectedMemberDetail.joinDate}</p>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedMemberDetail.notes && (
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 mb-1">Notes / Favorite Verse</p>
+                  <p className="text-sm text-slate-700">{selectedMemberDetail.notes}</p>
+                </div>
+              )}
+
+              {/* Application Form */}
+              {selectedMemberDetail.formPdfUrl && (
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 mb-2">Application Form</p>
+                  <a 
+                    href={selectedMemberDetail.formPdfUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>View Member Application Form (PDF)</span>
+                    <Download className="h-4 w-4 ml-2" />
+                  </a>
+                </div>
+              )}
+
+              {/* Review Notes (if any) */}
+              {selectedMemberDetail.reviewNotes && (
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                  <p className="text-xs text-amber-600 font-semibold mb-1">Review Notes</p>
+                  <p className="text-sm text-amber-800">{selectedMemberDetail.reviewNotes}</p>
+                </div>
+              )}
+
+              {/* Rejection Reason (if any) */}
+              {selectedMemberDetail.rejectedReason && (
+                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200">
+                  <p className="text-xs text-rose-600 font-semibold mb-1">Rejection Reason</p>
+                  <p className="text-sm text-rose-800">{selectedMemberDetail.rejectedReason}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-white p-4 border-t flex justify-end">
+              <button
+                onClick={() => setShowMemberDetailModal(false)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MEMBER MODAL */}
       {showMemberModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -1190,6 +1695,15 @@ export default function AdminDashboard({ userData, session }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="text-xs font-semibold text-slate-600">Church</label>
+                  <select value={newMember.churchID} onChange={(e) => setNewMember({ ...newMember, churchID: parseInt(e.target.value) })}
+                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+                    {churches.map((church) => (
+                      <option key={church.id} value={church.id}>{church.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-slate-600">Role</label>
                   <select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
                     className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
@@ -1198,15 +1712,6 @@ export default function AdminDashboard({ userData, session }) {
                     <option value="Secretary">Secretary</option>
                     <option value="Treasurer">Treasurer</option>
                     <option value="Admin">Admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">Status</label>
-                  <select value={newMember.status} onChange={(e) => setNewMember({ ...newMember, status: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="Outreach">Outreach</option>
                   </select>
                 </div>
               </div>

@@ -224,7 +224,7 @@ export default function UserProfileDashboard({
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Back and Breadcrumb panel - Redesigned */}
-        <div
+        {/* <div
           className="flex items-center justify-between flex-wrap gap-3"
           id="profile-dashboard-header"
         >
@@ -245,7 +245,7 @@ export default function UserProfileDashboard({
             <span>CLOUD AUTHENTICATED</span>
             <Shield className="h-3 w-3 text-emerald-500 ml-1" />
           </div>
-        </div>
+        </div> */}
 
         {/* Outer Frame with Split Screen UI - Enhanced */}
         <div

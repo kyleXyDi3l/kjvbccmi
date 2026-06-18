@@ -37,7 +37,12 @@ import {
   Home,
   Clock,
   Star,
-  Clipboard
+  Clipboard,
+  File,
+  Download,
+  Eye,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
 const MOCK_AVATAR_PRESETS = [
@@ -59,11 +64,16 @@ const MOCK_AVATAR_PRESETS = [
   },
 ];
 
+// Allowed statuses for secretary
+const SECRETARY_STATUSES = [9, 10]; // 9 = For Data Input, 10 = For Review
+const EDITABLE_STATUSES = [9, 13]; // 9 = For Data Input, 13 = Rejected in Review
+
 export default function SecretaryDashBoard({ userData, session }) {
   const [activeTab, setActiveTab] = useState("registry");
   const [successMemo, setSuccessMemo] = useState("");
   const [errorMemo, setErrorMemo] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   //Loading State
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -71,6 +81,8 @@ export default function SecretaryDashBoard({ userData, session }) {
   // 1. Managing Active/Edit Member Form State
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
   // Custom states added for Printable ID & Pagination
   const [selectedIdMember, setSelectedIdMember] = useState(null);
@@ -89,6 +101,8 @@ export default function SecretaryDashBoard({ userData, session }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("joinDate");
+
+  const [statusOptions, setStatusOptions] = useState([]);
 
   // Meeting Notes
   const [meetingNotes, setMeetingNotes] = useState([]);
@@ -110,6 +124,11 @@ export default function SecretaryDashBoard({ userData, session }) {
   const [eventDate, setEventDate] = useState("2026-06-15");
   const [eventTime, setEventTime] = useState("17:00");
   const [ministryType, setMinistryType] = useState("General");
+
+  // Rejection modal
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectingMember, setRejectingMember] = useState(null);
 
   // Drawing signature pad event callbacks
   const startSignDraw = (e) => {
@@ -180,10 +199,11 @@ export default function SecretaryDashBoard({ userData, session }) {
     phoneNumber: "",
     birthDate: "",
     churchID: "",
-    status: "",
+    statusId: 1, // Default to "For Data Input"
     joinDate: "",
     notes: "",
     profilePic: "",
+    formPdfUrl: "",
   });
 
   const resetMember = () => {
@@ -195,11 +215,82 @@ export default function SecretaryDashBoard({ userData, session }) {
       phoneNumber: "",
       birthDate: "",
       churchID: userData.churches.id,
-      status: "Active",
-      joinDate: "",
+      statusId: 9,
+      joinDate: new Date().toISOString().split("T")[0],
       notes: "",
       profilePic: "",
+      formPdfUrl: "",
     });
+    setPdfFile(null);
+    setPdfPreviewUrl(null);
+  };
+
+  // Check if member can be set to "For Review"
+  const canSetForReview = (member) => {
+    return [
+      member.firstName,
+      member.lastName,
+      member.emailAdd,
+      member.phoneNumber,
+      member.birthDate,
+      member.formPdfUrl,
+    ].every(field =>
+      field !== null &&
+      field !== undefined &&
+      (typeof field !== "string" || field.trim() !== "")
+    );
+  };
+
+  // Upload PDF to Supabase Storage
+  const uploadPdf = async (file, memberId) => {
+    if (!file) return null;
+    
+    setUploadingPdf(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${memberId}_${Date.now()}.${fileExt}`;
+    const filePath = `member-forms/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("member-forms")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error("Error uploading PDF:", uploadError);
+      setErrorMemo("Failed to upload PDF file");
+      setUploadingPdf(false);
+      return null;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("member-forms")
+      .getPublicUrl(filePath);
+
+    setUploadingPdf(false);
+    return publicUrl;
+  };
+
+  // Handle PDF file selection
+  const handlePdfChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        setErrorMemo("Please select a PDF file");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMemo("Please select a PDF file under 5MB");
+        return;
+      }
+      setPdfFile(file);
+      setPdfPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  // Remove PDF
+  const removePdf = () => {
+    setPdfFile(null);
+    setPdfPreviewUrl(null);
+    setNewMember({ ...newMember, formPdfUrl: "" });
   };
 
   useEffect(() => {
@@ -244,24 +335,65 @@ export default function SecretaryDashBoard({ userData, session }) {
 
   useEffect(() => {
     fetchMembers();
+    fetchStatuses();
     fetchEvents();
     fetchMeetingNotes();
   }, []);
 
   const fetchMembers = async () => {
     setIsDataLoading(true);
+
     const { data, error } = await supabase
       .from("members")
-      .select(`*, churches(id, name)`)
+      .select(`
+        *,
+        churches(id, name),
+        members_status!inner(id,status)
+      `)
       .eq("churchID", userData.churches.id)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching members:", error.message);
+      setErrorMemo("Failed to load members");
     } else {
-      setMembers(data);
+      const transformedMembers = data.map(member => ({
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        emailAdd: member.emailAdd,
+        phoneNumber: member.phoneNumber,
+        birthDate: member.birthDate,
+        joinDate: member.joinDate,
+        notes: member.notes,
+        profilePic: member.profilePic,
+        role: member.role,
+        churchId: member.churchID,
+        churchName: member.churches?.name,
+        statusId: member.statusId,
+        status: member.members_status?.status,
+        formPdfUrl: member.formPdfUrl,
+        reviewNotes: member.reviewNotes,
+        rejectedReason: member.rejectedReason,
+        createdAt: member.created_at,
+        createdBy: member.createdBy,
+      }));
+      setMembers(transformedMembers);
+      console.log("fetchMembers", transformedMembers);
     }
     setIsDataLoading(false);
+  };
+
+  // Fetch statuses for filter dropdown
+  const fetchStatuses = async () => {
+    const { data, error } = await supabase
+      .from("members_status")
+      .select("*")
+      .order("id");
+
+    if (!error && data) {
+      setStatusOptions(data);
+    }
   };
 
   const fetchEvents = async () => {
@@ -299,6 +431,13 @@ export default function SecretaryDashBoard({ userData, session }) {
   };
 
   const triggerEditMember = (m) => {
+    // Check if member is editable (For Data Input or Rejected in Review)
+    if (!EDITABLE_STATUSES.includes(m.statusId)) {
+      setErrorMemo(`Cannot edit member with status: ${m.status}. Only members in "For Data Input" or "Rejected in Review" status can be edited.`);
+      setTimeout(() => setErrorMemo(""), 3000);
+      return;
+    }
+
     setEditingMember(m);
     setNewMember({
       id: m.id,
@@ -308,31 +447,59 @@ export default function SecretaryDashBoard({ userData, session }) {
       phoneNumber: m.phoneNumber,
       birthDate: m.birthDate,
       churchID: userData.churches.id,
-      status: m.status,
+      statusId: m.statusId,
       joinDate: m.joinDate,
       notes: m.notes,
       profilePic: m.profilePic,
+      formPdfUrl: m.formPdfUrl || "",
     });
+    if (m.formPdfUrl) {
+      setPdfPreviewUrl(m.formPdfUrl);
+    }
     setShowMemberModal(true);
   };
 
   const handleSaveMember = async (e) => {
     e.preventDefault();
-    let profileImgUrl = null;
+    let profileImgUrl = newMember.profilePic;
+    let pdfUrl = newMember.formPdfUrl;
 
     if (photoFile) {
       profileImgUrl = await uploadImage(photoFile);
-      setNewMember({
-        ...newMember,
-        profilePic: profileImgUrl,
-      });
+    }
+
+    if (pdfFile) {
+      const tempId = editingMember?.id || `temp_${Date.now()}`;
+      pdfUrl = await uploadPdf(pdfFile, tempId);
     }
 
     if (!editingMember) {
-      const { id, ...memberData } = newMember;
-      const { error } = await supabase
-        .from("members")
-        .insert({ ...memberData, createdBy: session.user.id });
+        console.log("New member Data", newMember);
+
+
+      if (newMember.statusId == 10 && !canSetForReview(newMember)) {
+            setErrorMemo("Cannot set to For Review. Please ensure all fields are filled and application form is attached.");
+            //setShowMemberModal(false);
+            //setTimeout(() => setErrorMemo(""), 3000);
+            return;
+          }
+
+      const memberData = {
+        firstName: newMember.firstName,
+        lastName: newMember.lastName,
+        emailAdd: newMember.emailAdd,
+        phoneNumber: newMember.phoneNumber,
+        birthDate: newMember.birthDate,
+        joinDate: newMember.joinDate || new Date().toISOString().split("T")[0],
+        notes: newMember.notes,
+        profilePic: profileImgUrl,
+        formPdfUrl: pdfUrl,
+        statusId: newMember.statusId,
+        churchID: userData.churches.id,
+        createdBy: session.user.id,
+      };
+
+      const { error } = await supabase.from("members").insert([memberData]);
       if (error) {
         console.error("Error adding new Member:", error.message);
         setErrorMemo(error.message);
@@ -340,33 +507,101 @@ export default function SecretaryDashBoard({ userData, session }) {
       }
       setSuccessMemo(`Successfully registered new member ${newMember.firstName} ${newMember.lastName}.`);
     } else {
-      const updates = {};
-      for (const key in newMember) {
-        if (newMember[key] !== editingMember[key]) {
-          updates[key] = newMember[key];
-        }
-      }
-      if (Object.keys(updates).length > 0) {
-        const { error } = await supabase
-          .from("members")
-          .update(updates)
-          .eq("id", newMember.id);
 
-        if (error) {
-          console.error("Error editing task:", error.message);
-          setErrorMemo(error.message);
-          return;
-        }
-        setSuccessMemo(`Successfully updated registry files for ${newMember.firstName} ${newMember.lastName}.`);
-      } else {
-        setSuccessMemo("Nothing to update");
+        if (newMember.statusId == 10 && !canSetForReview(newMember)) {
+        setErrorMemo("Cannot set to For Review. Please ensure all fields are filled and application form is attached.");
+        //setShowMemberModal(false);
+        //setTimeout(() => setErrorMemo(""), 3000);
+        return;
       }
+
+      const updates = {
+        firstName: newMember.firstName,
+        lastName: newMember.lastName,
+        emailAdd: newMember.emailAdd,
+        phoneNumber: newMember.phoneNumber,
+        birthDate: newMember.birthDate,
+        joinDate: newMember.joinDate,
+        notes: newMember.notes,
+        profilePic: profileImgUrl,
+        formPdfUrl: pdfUrl,
+        statusId: newMember.statusId,
+      };
+
+
+      const { error } = await supabase
+        .from("members")
+        .update(updates)
+        .eq("id", editingMember.id);
+
+      if (error) {
+        console.error("Error editing member:", error.message);
+        setErrorMemo(error.message);
+        return;
+      }
+      setSuccessMemo(`Successfully updated registry files for ${newMember.firstName} ${newMember.lastName}.`);
     }
 
     resetMember();
     setShowMemberModal(false);
     //fetchMembers();
     setTimeout(() => setSuccessMemo(""), 4500);
+  };
+
+  // Handle setting member to "For Review"
+  const handleSetForReview = async (member) => {
+    if (!canSetForReview(member)) {
+      setErrorMemo("Cannot set to For Review. Please ensure all fields are filled and application form is attached.");
+      setTimeout(() => setErrorMemo(""), 3000);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("members")
+      .update({ statusId: 10 }) // 2 = For Review
+      .eq("id", member.id);
+
+    if (error) {
+      setErrorMemo(error.message);
+    } else {
+      setSuccessMemo(`${member.firstName} ${member.lastName} has been submitted for review.`);
+      fetchMembers();
+    }
+    setTimeout(() => setSuccessMemo(""), 3000);
+  };
+
+  // Show rejection modal
+  const handleRejectMember = (member) => {
+    setRejectingMember(member);
+    setRejectionReason("");
+    setShowRejectionModal(true);
+  };
+
+  // Submit rejection
+  const submitRejection = async () => {
+    if (!rejectionReason.trim()) {
+      setErrorMemo("Please provide a reason for rejection");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("members")
+      .update({ 
+        status: 5, // 5 = Rejected in Review
+        rejectedReason: rejectionReason,
+        reviewedBy: session.user.id,
+        reviewedAt: new Date().toISOString(),
+      })
+      .eq("id", rejectingMember.id);
+
+    if (error) {
+      setErrorMemo(error.message);
+    } else {
+      setSuccessMemo(`Application for ${rejectingMember.firstName} ${rejectingMember.lastName} has been rejected.`);
+      fetchMembers();
+      setShowRejectionModal(false);
+    }
+    setTimeout(() => setSuccessMemo(""), 3000);
   };
 
   const handleSaveEvent = async (e) => {
@@ -539,7 +774,7 @@ export default function SecretaryDashBoard({ userData, session }) {
       });
     }
     if (statusFilter !== "All") {
-      filtered = filtered.filter((m) => m.status === statusFilter);
+      filtered = filtered.filter((m) => m.statusId === parseInt(statusFilter));
     }
     filtered.sort((a, b) => {
       if (sortBy === "joinDate") {
@@ -555,6 +790,7 @@ export default function SecretaryDashBoard({ userData, session }) {
   }, [members, searchTerm, statusFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+  
   const paginatedMembers = useMemo(() => {
     const offset = (currentPage - 1) * itemsPerPage;
     return filteredMembers.slice(offset, offset + itemsPerPage);
@@ -583,7 +819,6 @@ export default function SecretaryDashBoard({ userData, session }) {
       <div className={`${sidebarCollapsed ? "w-20" : "w-64"} shrink-0 bg-white border-r border-slate-200 flex flex-col fixed h-full z-30 transition-all duration-300`}>
         <div className="flex-1 py-6 px-4">
           <div className="space-y-1">
-            {/* Menu Console Header */}
             <div className="pb-3 mb-3 border-b border-slate-100 px-2 flex items-center justify-between">
               <span className={`text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider ${sidebarCollapsed ? "hidden" : "block"}`}>
                 Menu Console
@@ -596,7 +831,6 @@ export default function SecretaryDashBoard({ userData, session }) {
               </button>
             </div>
 
-            {/* Navigation Items */}
             {navigationItems.map((item) => (
               <button
                 key={item.id}
@@ -620,7 +854,8 @@ export default function SecretaryDashBoard({ userData, session }) {
             ))}
           </div>
 
-          {/* Footer Section */}
+
+
           <div className="absolute bottom-6 left-4 right-4">
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -639,35 +874,27 @@ export default function SecretaryDashBoard({ userData, session }) {
 
       {/* RIGHT MAIN CONTENT AREA */}
       <div className={`flex-1 ${sidebarCollapsed ? "ml-20" : "ml-64"} transition-all duration-300`}>
-        {/* Success/Error Messages */}
         {successMemo && (
           <div className="mx-6 mt-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-emerald-600" />
             <span>{successMemo}</span>
           </div>
         )}
-        {errorMemo && (
+        {/* {errorMemo && (
           <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-600" />
             <span>{errorMemo}</span>
           </div>
-        )}
+        )} */}
 
-        {/* Main Content */}
         <main className="p-6">
           
           {/* VIEW 1: MEMBERS REGISTRY */}
           {activeTab === "registry" && (
             <div className="space-y-6">
-              {/* Header Banner */}
+              {/* Header Banner - Keep your existing banner */}
               <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950/30 text-white rounded-2xl p-6 md:p-8 border border-slate-700/50 overflow-hidden shadow-xl">
-                <div className="absolute inset-0 opacity-5 pointer-events-none">
-                  <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-emerald-500 blur-3xl" />
-                  <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-sky-500 blur-3xl" />
-                </div>
-                <div className="absolute right-0 top-0 opacity-5 pointer-events-none select-none">
-                  <ShieldCheck className="h-64 w-64 translate-x-20 -translate-y-10" />
-                </div>
+                {/* ... existing banner content ... */}
                 <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <div className="flex-1 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -679,9 +906,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                       </div>
                       <div className="h-3 w-px bg-slate-600 hidden sm:block" />
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-slate-400 font-sans">
-                          Localized Context:
-                        </span>
+                        <span className="text-[10px] text-slate-400 font-sans">Localized Context:</span>
                         <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                           {userData.churches.name || ""} Extension Only
                         </span>
@@ -722,7 +947,6 @@ export default function SecretaryDashBoard({ userData, session }) {
 
               {/* Member Registry Panel */}
               <div className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
-                {/* Header Section */}
                 <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-5 border-b border-slate-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
@@ -730,20 +954,12 @@ export default function SecretaryDashBoard({ userData, session }) {
                         <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
                           <Users className="h-4 w-4 text-white" />
                         </div>
-                        <h2 className="text-sm font-sans font-extrabold text-slate-800 uppercase tracking-wider">
-                          Congregation Registry
-                        </h2>
-                        <span className="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-mono font-bold">
-                          SECURE MODE
-                        </span>
+                        <h2 className="text-sm font-sans font-extrabold text-slate-800 uppercase tracking-wider">Congregation Registry</h2>
+                        <span className="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-mono font-bold">SECURE MODE</span>
                       </div>
                       <p className="text-[11px] text-slate-500 font-sans ml-10">
-                        Clerks are authorized to alter records strictly within the
-                        bounds of the{" "}
-                        <span className="font-bold text-indigo-600">
-                          {userData?.churches?.name || "Naga"}
-                        </span>{" "}
-                        Church.
+                        Clerks are authorized to alter records strictly within the bounds of the{" "}
+                        <span className="font-bold text-indigo-600">{userData?.churches?.name || "Naga"}</span> Church.
                       </p>
                     </div>
                     <button
@@ -776,9 +992,9 @@ export default function SecretaryDashBoard({ userData, session }) {
                         className="px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
                       >
                         <option value="All">All Status</option>
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Outreach">Outreach</option>
+                        {statusOptions.map((status) => (
+                          <option key={status.id} value={status.id}>{status.status}</option>
+                        ))}
                       </select>
                       <select
                         value={sortBy}
@@ -808,7 +1024,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                         <th className="p-4">Contact</th>
                         <th className="p-4">Birthday</th>
                         <th className="p-4">Status</th>
-                        <th className="p-4">Joined</th>
+                        <th className="p-4">Form</th>
                         <th className="p-4 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -821,15 +1037,10 @@ export default function SecretaryDashBoard({ userData, session }) {
                                 <Users className="h-8 w-8 text-slate-300" />
                               </div>
                               <p className="text-sm text-slate-400 italic font-sans">
-                                {searchTerm
-                                  ? `No members found matching "${searchTerm}"`
-                                  : `No members registered under the ${userData?.churches?.name || "Naga"} chapel database.`}
+                                {searchTerm ? `No members found matching "${searchTerm}"` : `No members registered yet.`}
                               </p>
                               {!searchTerm && (
-                                <button
-                                  onClick={triggerAddMember}
-                                  className="mt-2 text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1"
-                                >
+                                <button onClick={triggerAddMember} className="mt-2 text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1">
                                   <UserPlus className="h-3.5 w-3.5" />
                                   Add your first member
                                 </button>
@@ -839,10 +1050,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                         </tr>
                       ) : (
                         paginatedMembers.map((m, idx) => (
-                          <tr
-                            key={m.id}
-                            className="hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-transparent transition-all duration-200 group"
-                          >
+                          <tr key={m.id} className="hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-transparent transition-all duration-200 group">
                             <td className="p-4">
                               <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">
                                 {idx + 1 + (currentPage - 1) * itemsPerPage}
@@ -851,78 +1059,92 @@ export default function SecretaryDashBoard({ userData, session }) {
                             <td className="p-4">
                               <div className="flex items-center gap-3">
                                 {m.profilePic ? (
-                                  <img
-                                    src={m.profilePic}
-                                    alt={`${m.firstName}`}
-                                    className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-md"
-                                    referrerPolicy="no-referrer"
-                                  />
+                                  <img src={m.profilePic} alt={`${m.firstName}`} className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-md" referrerPolicy="no-referrer" />
                                 ) : (
                                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
-                                    {m.firstName?.[0] || "U"}
-                                    {m.lastName?.[0] || "s"}
+                                    {m.firstName?.[0] || "U"}{m.lastName?.[0] || "s"}
                                   </div>
                                 )}
                                 <div>
-                                  <div className="font-bold text-slate-800">
-                                    {m.firstName} {m.lastName}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 font-mono">
-                                    {m.emailAdd}
-                                  </div>
+                                  <div className="font-bold text-slate-800">{m.firstName} {m.lastName}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{m.emailAdd}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="p-4">
                               <div className="flex items-center gap-1.5">
                                 <Phone className="h-3 w-3 text-slate-400" />
-                                <span className="font-mono text-[11px] text-slate-600">
-                                  {m.phoneNumber || "N/A"}
-                                </span>
+                                <span className="font-mono text-[11px] text-slate-600">{m.phoneNumber || "N/A"}</span>
                               </div>
                             </td>
                             <td className="p-3">
                               <div className="flex items-center gap-1.5">
                                 <Calendar className="h-3 w-3 text-slate-400" />
-                                <span className="font-mono text-[11px] text-slate-600">
-                                  {m.birthDate || "Not set"}
-                                </span>
+                                <span className="font-mono text-[11px] text-slate-600">{m.birthDate || "Not set"}</span>
                               </div>
                             </td>
                             <td className="p-4">
-                              <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold font-mono uppercase shadow-sm ${
-                                  m.status === "Active"
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                    : m.status === "Inactive"
-                                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                      : "bg-amber-50 text-amber-700 border border-amber-200"
-                                }`}
-                              >
-                                <span
-                                  className={`h-1.5 w-1.5 rounded-full ${
-                                    m.status === "Active"
-                                      ? "bg-emerald-500 animate-pulse"
-                                      : m.status === "Inactive"
-                                        ? "bg-rose-500"
-                                        : "bg-amber-500"
-                                  }`}
-                                />
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold font-mono uppercase shadow-sm ${
+                                m.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                m.status === "For Review" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                m.status === "Rejected in Review" ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                                "bg-slate-100 text-slate-600 border border-slate-200"
+                              }`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${
+                                  m.status === "Active" ? "bg-emerald-500 animate-pulse" :
+                                  m.status === "For Review" ? "bg-amber-500" :
+                                  m.status === "Rejected in Review" ? "bg-rose-500" : "bg-slate-400"
+                                }`} />
                                 {m.status}
                               </span>
+                              {m.rejectedReason && (
+                                <div className="mt-1 text-[8px] text-rose-500 italic">{m.rejectedReason}</div>
+                              )}
                             </td>
                             <td className="p-4">
-                              <div className="text-[11px] font-sans">
-                                <div className="font-semibold text-slate-700">
-                                  {m.joinDate}
-                                </div>
-                                <div className="text-[9px] text-slate-400">
-                                  Member since
-                                </div>
-                              </div>
+                              {m.formPdfUrl ? (
+                                <a href={m.formPdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800">
+                                  <File className="h-4 w-4" />
+                                  <span className="text-[10px]">View Form</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400 text-[10px]">No form</span>
+                              )}
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => triggerEditMember(m)}
+                                  disabled={!EDITABLE_STATUSES.includes(m.statusId)}
+                                  className={`group/edit inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer transition-all duration-200 ${
+                                    EDITABLE_STATUSES.includes(m.statusId)
+                                      ? "bg-slate-100 hover:bg-slate-800 text-slate-600 hover:text-white"
+                                      : "bg-slate-100 text-slate-300 cursor-not-allowed opacity-50"
+                                  }`}
+                                  title={!EDITABLE_STATUSES.includes(m.statusId) ? `Cannot edit member with status: ${m.status}` : "Edit Member"}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                  <span>Edit</span>
+                                </button>
+                                {m.statusId === 9 && m.formPdfUrl && (
+                                  <button
+                                    onClick={() => handleSetForReview(m)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-[10px] font-semibold transition-all duration-200"
+                                  >
+                                    <CheckCircle className="h-3 w-3" />
+                                    <span>For Review</span>
+                                  </button>
+                                )}
+                                {m.statusId === 13 && (
+                                  <button
+                                    onClick={() => handleSetForReview(m)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg text-[10px] font-semibold transition-all duration-200"
+                                  >
+                                    <RefreshCw className="h-3 w-3" />
+                                    <span>Resubmit</span>
+                                  </button>
+                                )}
+                                {m.statusId === 14 && (
                                 <button
                                   onClick={() => setSelectedIdMember(m)}
                                   className="group/print inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer shadow-sm hover:shadow"
@@ -931,18 +1153,7 @@ export default function SecretaryDashBoard({ userData, session }) {
                                   <Printer className="h-3 w-3 group-hover/print:scale-110 transition-transform" />
                                   <span>ID Card</span>
                                 </button>
-                                <button
-                                  onClick={() =>
-                                    triggerEditMember({
-                                      ...m,
-                                      churchName: userData?.churches?.name,
-                                    })
-                                  }
-                                  className="group/edit inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-800 text-slate-600 hover:text-white transition-all duration-200 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer"
-                                >
-                                  <Edit2 className="h-3 w-3 group-hover/edit:scale-110 transition-transform" />
-                                  <span>Edit</span>
-                                </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -962,18 +1173,9 @@ export default function SecretaryDashBoard({ userData, session }) {
                         </div>
                         <p className="text-xs text-slate-600 font-sans">
                           Showing{" "}
-                          <span className="font-extrabold text-slate-900">
-                            {(currentPage - 1) * itemsPerPage + 1}
-                          </span>{" "}
-                          to{" "}
-                          <span className="font-extrabold text-slate-900">
-                            {Math.min(currentPage * itemsPerPage, filteredMembers.length)}
-                          </span>{" "}
-                          of{" "}
-                          <span className="font-extrabold text-indigo-600">
-                            {filteredMembers.length}
-                          </span>{" "}
-                          registered members
+                          <span className="font-extrabold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to{" "}
+                          <span className="font-extrabold text-slate-900">{Math.min(currentPage * itemsPerPage, filteredMembers.length)}</span> of{" "}
+                          <span className="font-extrabold text-indigo-600">{filteredMembers.length}</span> registered members
                           {searchTerm && <span className="text-slate-400"> (filtered)</span>}
                         </p>
                       </div>
@@ -989,15 +1191,10 @@ export default function SecretaryDashBoard({ userData, session }) {
                         </button>
                         {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                           let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
+                          if (totalPages <= 5) pageNum = i + 1;
+                          else if (currentPage <= 3) pageNum = i + 1;
+                          else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                          else pageNum = currentPage - 2 + i;
                           return (
                             <button
                               key={pageNum}
@@ -1030,7 +1227,7 @@ export default function SecretaryDashBoard({ userData, session }) {
             </div>
           )}
 
-          {/* VIEW 2: CALENDAR EVENTS */}
+         {/* VIEW 2: CALENDAR EVENTS */}
           {activeTab === "scheduler" && (
             <div className="space-y-6">
               {/* Header Banner */}
@@ -1295,53 +1492,61 @@ export default function SecretaryDashBoard({ userData, session }) {
         </main>
       </div>
 
-      {/* MEMBER REGISTRATION MODAL */}
-     {showMemberModal && (
-        <div
-          className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-200"
-          id="member-profile-modal"
-        >
+      {/* MEMBER REGISTRATION MODAL - Updated with PDF upload */}
+      {showMemberModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col my-8 animate-in zoom-in-95 duration-300">
-            {/* Header - Premium Design */}
             <div className="relative bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-5">
-              {/* Decorative Elements */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
               <div className="flex justify-between items-start relative z-10">
                 <div>
                   <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 backdrop-blur-sm px-2.5 py-1 rounded-full mb-2 border border-emerald-500/30">
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[8px] font-mono uppercase font-bold text-emerald-300 tracking-wider">
-                      DATABASE TRANSACTION
-                    </span>
+                    <span className="text-[8px] font-mono uppercase font-bold text-emerald-300 tracking-wider">DATABASE TRANSACTION</span>
                   </div>
                   <h3 className="font-sans font-bold text-white text-lg tracking-tight">
-                    {editingMember
-                      ? `Update Profile: ${newMember.firstName || ""} ${newMember.lastName || ""}`
-                      : "Add New Member Profile Record"}
+                    {editingMember ? `Update Profile: ${newMember.firstName || ""} ${newMember.lastName || ""}` : "Add New Member Profile Record"}
                   </h3>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    {editingMember
-                      ? "Edit member information securely"
-                      : "Register a new member to the congregation"}
+                    {editingMember ? "Edit member information securely" : "Register a new member to the congregation"}
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowMemberModal(false)}
-                  className="p-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-all duration-200"
-                >
+                <button onClick={() => setShowMemberModal(false)} className="p-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-all duration-200">
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            {/* Form Body */}
-            <form
-              onSubmit={handleSaveMember}
-              className="p-6 space-y-4 overflow-y-auto max-h-[60vh] custom-scrollbar"
-              id="member-file-form"
-            >
+                {/* Error Message Display INSIDE Modal */}
+              {errorMemo && (
+                <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <span>{errorMemo}</span>
+                  <button 
+                    onClick={() => setErrorMemo("")} 
+                    className="ml-auto text-red-500 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Success Message Display INSIDE Modal */}
+              {/* {successMemo && (
+                <div className="mx-6 mt-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  <span>{successMemo}</span>
+                  <button 
+                    onClick={() => setSuccessMemo("")} 
+                    className="ml-auto text-emerald-500 hover:text-emerald-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}            */}
+
+            <form onSubmit={handleSaveMember} className="p-6 space-y-4 overflow-y-auto max-h-[60vh] custom-scrollbar">
               {/* Name Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1354,15 +1559,9 @@ export default function SecretaryDashBoard({ userData, session }) {
                       type="text"
                       required
                       value={newMember.firstName}
-                      onChange={(e) =>
-                        setNewMember({
-                          ...newMember,
-                          firstName: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, firstName: e.target.value })}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                       placeholder="Enter first name"
-                      id="mem-input-fname"
                     />
                   </div>
                 </div>
@@ -1376,12 +1575,9 @@ export default function SecretaryDashBoard({ userData, session }) {
                       type="text"
                       required
                       value={newMember.lastName}
-                      onChange={(e) =>
-                        setNewMember({ ...newMember, lastName: e.target.value })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, lastName: e.target.value })}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                       placeholder="Enter last name"
-                      id="mem-input-lname"
                     />
                   </div>
                 </div>
@@ -1399,34 +1595,31 @@ export default function SecretaryDashBoard({ userData, session }) {
                       type="email"
                       required
                       value={newMember.emailAdd}
-                      onChange={(e) =>
-                        setNewMember({ ...newMember, emailAdd: e.target.value })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, emailAdd: e.target.value })}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                       placeholder="member@church.org"
-                      id="mem-input-email"
                     />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
-                    Phone Number
+                    Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     <input
                       type="tel"
+                      required
                       value={newMember.phoneNumber}
                       onChange={phoneNumberChangeHandler}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
                       placeholder="+63 9xx xxx xxxx"
-                      id="mem-input-phone"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Date & Extension */}
+              {/* Date & Status */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
@@ -1438,51 +1631,10 @@ export default function SecretaryDashBoard({ userData, session }) {
                       type="date"
                       required
                       value={newMember.birthDate}
-                      onChange={(e) =>
-                        setNewMember({
-                          ...newMember,
-                          birthDate: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, birthDate: e.target.value })}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                      id="mem-input-birthday"
                     />
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
-                    Affiliated Extension
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      readOnly
-                      value={userData?.churches?.name || "Naga"}
-                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-100 text-slate-600 font-semibold cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Status & Join Date */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
-                    Membership Status
-                  </label>
-                  <select
-                    value={newMember.status}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, status: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer transition-all"
-                    id="mem-input-status"
-                  >
-                    <option value="Active">✅ Active Participant</option>
-                    <option value="Inactive">⭕ Inactive Fellow</option>
-                    <option value="Outreach">🌍 Outreach Contact</option>
-                  </select>
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
@@ -1493,13 +1645,42 @@ export default function SecretaryDashBoard({ userData, session }) {
                     <input
                       type="date"
                       value={newMember.joinDate}
-                      onChange={(e) =>
-                        setNewMember({ ...newMember, joinDate: e.target.value })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, joinDate: e.target.value })}
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                      id="mem-input-joindate"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Affiliated Extension & Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Affiliated Extension
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={userData?.churches?.name || "Naga"}
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-100 text-slate-600 font-semibold cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    Status
+                  </label>
+                  <select
+                    value={newMember.statusId}
+                    onChange={(e) => setNewMember({ ...newMember, statusId: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none cursor-pointer transition-all"
+                  >
+                    {statusOptions
+                      .filter(s => SECRETARY_STATUSES.includes(s.id))
+                      .map((status) => (
+                        <option key={status.id} value={status.id}>{status.status}</option>
+                      ))}
+                  </select>
                 </div>
               </div>
 
@@ -1511,12 +1692,9 @@ export default function SecretaryDashBoard({ userData, session }) {
                 </label>
                 <textarea
                   value={newMember.notes}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, notes: e.target.value })
-                  }
+                  onChange={(e) => setNewMember({ ...newMember, notes: e.target.value })}
                   className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[80px] bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white resize-none"
                   placeholder="Insert notes, Favorite verse, or special concerns..."
-                  id="mem-input-notes"
                 />
               </div>
 
@@ -1526,96 +1704,143 @@ export default function SecretaryDashBoard({ userData, session }) {
                   <Image className="h-3.5 w-3.5" />
                   Member Profile Photo
                 </label>
-
                 <div className="flex gap-4 items-start">
-                  {/* Avatar Preview */}
                   <div className="shrink-0">
                     {newMember.profilePic ? (
-                      <img
-                        src={newMember.profilePic}
-                        alt="Preview"
-                        className="w-14 h-14 rounded-xl object-cover border-2 border-indigo-200 shadow-md"
-                        referrerPolicy="no-referrer"
-                      />
+                      <img src={newMember.profilePic} alt="Preview" className="w-14 h-14 rounded-xl object-cover border-2 border-indigo-200 shadow-md" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border-2 border-indigo-200 flex items-center justify-center shadow-md">
                         <Image className="h-6 w-6 text-indigo-400" />
                       </div>
                     )}
                   </div>
-
                   <div className="flex-1 space-y-2">
-                    {/* URL Input */}
                     <input
                       type="text"
                       placeholder="https://example.com/photo.jpg or paste image URL"
                       value={newMember.profilePic}
-                      onChange={(e) =>
-                        setNewMember({
-                          ...newMember,
-                          profilePic: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setNewMember({ ...newMember, profilePic: e.target.value })}
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-slate-50 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all hover:bg-white"
-                      id="mem-input-photo-url"
                     />
-
-                    {/* Avatar Presets & Upload */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[9px] text-slate-500 font-medium">
-                        Quick presets:
-                      </span>
+                      <span className="text-[9px] text-slate-500 font-medium">Quick presets:</span>
                       {MOCK_AVATAR_PRESETS.map((avatar, idx) => (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() =>
-                            setNewMember({
-                              ...newMember,
-                              profilePic: avatar.url,
-                            })
-                          }
+                          onClick={() => setNewMember({ ...newMember, profilePic: avatar.url })}
                           className="group relative text-[9px] bg-slate-100 hover:bg-indigo-100 border border-slate-200 hover:border-indigo-300 text-slate-600 hover:text-indigo-700 px-2 py-1 rounded-lg transition-all duration-200 cursor-pointer"
                         >
                           {avatar.label}
                         </button>
                       ))}
-
                       <label className="flex items-center gap-1 text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-1 rounded-lg cursor-pointer hover:bg-indigo-100 transition-all duration-200 font-medium">
                         <Upload className="h-2.5 w-2.5" />
                         <span>Upload</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleFileChange}
-                        />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                       </label>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* PDF Application Form Upload Section */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                  <File className="h-3.5 w-3.5" />
+                  Application Form (PDF)
+                  {newMember.statusId === 2 && <span className="text-rose-500 ml-1">* Required for For Review</span>}
+                </label>
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-indigo-400 transition-all">
+                  {pdfPreviewUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <File className="h-8 w-8 text-indigo-600" />
+                          <span className="text-sm text-slate-600 truncate max-w-[200px]">
+                            {pdfFile ? pdfFile.name : "Application Form.pdf"}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <a href={pdfPreviewUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                            <Eye className="h-4 w-4" />
+                          </a>
+                          <button type="button" onClick={removePdf} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block">
+                      <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className="h-8 w-8 text-slate-400" />
+                        <span className="text-sm text-slate-500">Click to upload or drag and drop</span>
+                        <span className="text-xs text-slate-400">PDF files only, max 5MB</span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+                {newMember.statusId === 2 && !newMember.formPdfUrl && !pdfFile && (
+                  <p className="text-[10px] text-rose-500">Application form is required for "For Review" status</p>
+                )}
+              </div>
             </form>
 
-            {/* Footer Actions */}
             <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowMemberModal(false)}
-                className="flex-1 py-2.5 border-2 border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all duration-200 cursor-pointer uppercase tracking-wide"
-              >
+              <button type="button" onClick={() => setShowMemberModal(false)} className="flex-1 py-2.5 border-2 border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all duration-200 cursor-pointer uppercase tracking-wide">
                 Cancel
               </button>
               <button
                 type="submit"
                 onClick={handleSaveMember}
-                id="mem-submit-btn"
-                className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide"
+                disabled={uploadingPdf}
+                className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide disabled:opacity-50"
               >
-                <CheckCircle className="h-4 w-4" />
-                <span>
-                  {editingMember ? "Save Changes" : "Register Member"}
-                </span>
+                {uploadingPdf ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    <span>{editingMember ? "Save Changes" : "Register Member"}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECTION MODAL */}
+      {showRejectionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-rose-600" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-800">Reject Application</h2>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Please provide a reason for rejecting {rejectingMember?.firstName} {rejectingMember?.lastName}'s application.
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows="4"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none mb-4"
+              placeholder="Enter rejection reason..."
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setShowRejectionModal(false)} className="flex-1 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button onClick={submitRejection} className="flex-1 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 transition">
+                Confirm Rejection
               </button>
             </div>
           </div>
@@ -2268,7 +2493,6 @@ export default function SecretaryDashBoard({ userData, session }) {
           </div>
         </div>
       )}
-
     </div>
   );
 }
