@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../supabase-client";
 
 // Reusable Components
-import LoadingSpinner from "./shared/LoadingSpinner";
-import SuccessMessage from "./shared/SuccessMessage";
-import ErrorMessage from "./shared/ErrorMessage";
-import PrintableIDCard from "./shared/PrintableIDCard";
-import PrintableBaptismalCertificate from "./shared/PrintableBaptismalCertificate";
+import LoadingSpinner from "./Shared/LoadingSpinner";
+import SuccessMessage from "./Shared/SuccessMessage";
+import ErrorMessage from "./Shared/ErrorMessage";
+import PrintableIDCard from "./Shared/PrintableIDCard";
+import PrintableBaptismalCertificate from "./Shared/PrintableBaptismalCertificate";
 import SecretarySidebar from "./Secretary/SecretarySidebar";
 import MemberSearchBar from "./Secretary/MemberSearchBar";
 import MemberFilters from "./Secretary/MemberFilters";

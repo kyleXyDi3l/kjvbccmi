@@ -42,16 +42,16 @@ import {
 // ============================================================
 // REUSABLE COMPONENTS (imported from shared)
 // ============================================================
-import LoadingSpinner from "./shared/LoadingSpinner";
-import SuccessMessage from "./shared/SuccessMessage";
-import ErrorMessage from "./shared/ErrorMessage";
-import PaginationControls from "./secretary/PaginationControls";
+import LoadingSpinner from "./Shared/LoadingSpinner";
+import SuccessMessage from "./Shared/SuccessMessage";
+import ErrorMessage from "./Shared/ErrorMessage";
+import PaginationControls from "./Secretary/PaginationControls";
 
-import EventReportModal from "./shared/EventReportModal";
-import ReceiptModal from "./treasurer/ReceiptModal";
+import EventReportModal from "./Shared/EventReportModal";
+import ReceiptModal from "./Treasurer/ReceiptModal";
 
-import DeleteConfirmationModal from "./treasurer/DeleteConfirmationModal";
-import useDeleteModal from "./treasurer/useDeleteModal";
+import DeleteConfirmationModal from "./Treasurer/DeleteConfirmationModal";
+import useDeleteModal from "./Treasurer/useDeleteModal";
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
