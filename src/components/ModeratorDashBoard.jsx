@@ -45,7 +45,7 @@ export default function ModeratorDashboard({ userData, session }) {
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   // Members State - Only show applications that need review
   const [members, setMembers] = useState([]);
@@ -94,11 +94,7 @@ export default function ModeratorDashboard({ userData, session }) {
 
   const fetchAllData = async () => {
     setLoading(true);
-    await Promise.all([
-      fetchPendingMembers(),
-      fetchFinances(),
-      fetchPosts(),
-    ]);
+    await Promise.all([fetchPendingMembers(), fetchFinances(), fetchPosts()]);
     setLoading(false);
   };
 
@@ -106,11 +102,13 @@ export default function ModeratorDashboard({ userData, session }) {
   const fetchPendingMembers = async () => {
     const { data, error } = await supabase
       .from("members")
-      .select(`
+      .select(
+        `
         *,
         churches(id, name),
         members_status!members_statusId_fkey(id, status)
-      `)
+      `,
+      )
       .eq("statusId", 10)
       .eq("churchID", userData.churches.id)
       .order("created_at", { ascending: false });
@@ -120,38 +118,43 @@ export default function ModeratorDashboard({ userData, session }) {
       setErrorMsg("Failed to load pending applications");
       setTimeout(() => setErrorMsg(""), 3000);
     } else {
-      const transformedMembers = data?.map(member => ({
-        id: member.id,
-        firstName: member.firstName,
-        lastName: member.lastName,
-        emailAdd: member.emailAdd,
-        phoneNumber: member.phoneNumber,
-        birthDate: member.birthDate,
-        joinDate: member.joinDate,
-        notes: member.notes,
-        profilePic: member.profilePic,
-        role: member.role,
-        churchId: member.churchID,
-        churchName: member.churches?.name,
-        statusId: member.status,
-        status: member.members_status?.status,
-        formPdfUrl: member.formPdfUrl,
-        review_notes: member.reviewNotes,
-        created_at: member.created_at,
-        createdBy: member.createdBy,
-      })) || [];
+      const transformedMembers =
+        data?.map((member) => ({
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          emailAdd: member.emailAdd,
+          phoneNumber: member.phoneNumber,
+          birthDate: member.birthDate,
+          joinDate: member.joinDate,
+          notes: member.notes,
+          profilePic: member.profilePic,
+          role: member.role,
+          churchId: member.churchID,
+          churchName: member.churches?.name,
+          statusId: member.status,
+          status: member.members_status?.status,
+          formPdfUrl: member.formPdfUrl,
+          review_notes: member.reviewNotes,
+          created_at: member.created_at,
+          createdBy: member.createdBy,
+          baptisedDate: member.baptisedDate,
+          middleName: member.middleName,
+        })) || [];
       setMembers(transformedMembers);
+
+      console.log("Transformed Data: ", transformedMembers);
     }
   };
 
   // Approve Member - Set status to "Approved" (4)
   const handleApproveMember = async () => {
     if (!selectedMember) return;
-    
+
     setIsApproving(true);
     const { error } = await supabase
       .from("members")
-      .update({ 
+      .update({
         statusId: 12,
         review_notes: reviewNotes || null,
         reviewed_by: session?.user?.id,
@@ -162,7 +165,9 @@ export default function ModeratorDashboard({ userData, session }) {
     if (error) {
       setErrorMsg(error.message);
     } else {
-      setSuccessMsg(`${selectedMember.firstName} ${selectedMember.lastName}'s application has been approved and forwarded to Admin.`);
+      setSuccessMsg(
+        `${selectedMember.firstName} ${selectedMember.lastName}'s application has been approved and forwarded to Admin.`,
+      );
       await fetchPendingMembers();
       setShowReviewModal(false);
       setSelectedMember(null);
@@ -178,19 +183,19 @@ export default function ModeratorDashboard({ userData, session }) {
   // Reject Member - Set status to "Rejected in Review" (5)
   const handleRejectMember = async () => {
     if (!selectedMember) return;
-    
+
     if (!reviewNotes.trim()) {
       setErrorMsg("Please provide a reason for rejection");
       return;
     }
-    
+
     setIsApproving(true);
     const { error } = await supabase
       .from("members")
-      .update({ 
+      .update({
         statusId: 13,
         rejected_reason: reviewNotes,
-        review_notes: reviewNotes,
+        //review_notes: reviewNotes,
         reviewed_by: session?.user?.id,
         reviewed_at: new Date().toISOString(),
       })
@@ -199,7 +204,9 @@ export default function ModeratorDashboard({ userData, session }) {
     if (error) {
       setErrorMsg(error.message);
     } else {
-      setSuccessMsg(`${selectedMember.firstName} ${selectedMember.lastName}'s application has been rejected.`);
+      setSuccessMsg(
+        `${selectedMember.firstName} ${selectedMember.lastName}'s application has been rejected.`,
+      );
       await fetchPendingMembers();
       setShowReviewModal(false);
       setSelectedMember(null);
@@ -244,15 +251,15 @@ export default function ModeratorDashboard({ userData, session }) {
   // ==================== STATS CALCULATION ====================
   const calculateStats = () => {
     const totalOfferings = finances
-      .filter(f => f.transType === "Offering")
+      .filter((f) => f.transType === "Offering")
       .reduce((sum, f) => sum + (f.amount > 0 ? f.amount : 0), 0);
-    
+
     const totalDonations = finances
-      .filter(f => f.transType === "Donation")
+      .filter((f) => f.transType === "Donation")
       .reduce((sum, f) => sum + (f.amount > 0 ? f.amount : 0), 0);
-    
+
     const totalExpenses = finances
-      .filter(f => f.transType === "Expense")
+      .filter((f) => f.transType === "Expense")
       .reduce((sum, f) => sum + Math.abs(f.amount), 0);
 
     setStats({
@@ -265,26 +272,28 @@ export default function ModeratorDashboard({ userData, session }) {
     });
   };
 
-  const vaultTotal = stats.totalOfferings + stats.totalDonations - stats.totalExpenses;
+  const vaultTotal =
+    stats.totalOfferings + stats.totalDonations - stats.totalExpenses;
 
   // ==================== FILTERING ====================
   const filteredMembers = useMemo(() => {
     let filtered = [...members];
-    
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(m =>
-        m.firstName?.toLowerCase().includes(term) ||
-        m.lastName?.toLowerCase().includes(term) ||
-        m.emailAdd?.toLowerCase().includes(term) ||
-        m.churchName?.toLowerCase().includes(term)
+      filtered = filtered.filter(
+        (m) =>
+          m.firstName?.toLowerCase().includes(term) ||
+          m.lastName?.toLowerCase().includes(term) ||
+          m.emailAdd?.toLowerCase().includes(term) ||
+          m.churchName?.toLowerCase().includes(term),
       );
     }
-    
+
     if (statusFilter !== "All") {
-      filtered = filtered.filter(m => m.status === statusFilter);
+      filtered = filtered.filter((m) => m.status === statusFilter);
     }
-    
+
     return filtered;
   }, [members, searchTerm, statusFilter]);
 
@@ -297,24 +306,27 @@ export default function ModeratorDashboard({ userData, session }) {
 
   const filteredFinances = useMemo(() => {
     let filtered = [...finances];
-    
+
     if (financeSearch) {
       const term = financeSearch.toLowerCase();
-      filtered = filtered.filter(f =>
-        f.receiptNumber?.toLowerCase().includes(term) ||
-        f.description?.toLowerCase().includes(term) ||
-        f.contributorName?.toLowerCase().includes(term)
+      filtered = filtered.filter(
+        (f) =>
+          f.receiptNumber?.toLowerCase().includes(term) ||
+          f.description?.toLowerCase().includes(term) ||
+          f.contributorName?.toLowerCase().includes(term),
       );
     }
-    
+
     if (financeCategoryFilter !== "All") {
-      filtered = filtered.filter(f => f.transType === financeCategoryFilter);
+      filtered = filtered.filter((f) => f.transType === financeCategoryFilter);
     }
-    
+
     return filtered;
   }, [finances, financeSearch, financeCategoryFilter]);
 
-  const financeTotalPages = Math.ceil(filteredFinances.length / financesPerPage);
+  const financeTotalPages = Math.ceil(
+    filteredFinances.length / financesPerPage,
+  );
 
   const paginatedFinances = useMemo(() => {
     const offset = (financeCurrentPage - 1) * financesPerPage;
@@ -323,19 +335,20 @@ export default function ModeratorDashboard({ userData, session }) {
 
   const filteredPosts = useMemo(() => {
     let filtered = [...posts];
-    
+
     if (postSearch) {
       const term = postSearch.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.title?.toLowerCase().includes(term) ||
-        p.content?.toLowerCase().includes(term)
+      filtered = filtered.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(term) ||
+          p.content?.toLowerCase().includes(term),
       );
     }
-    
+
     if (postCategoryFilter !== "All") {
-      filtered = filtered.filter(p => p.category === postCategoryFilter);
+      filtered = filtered.filter((p) => p.category === postCategoryFilter);
     }
-    
+
     return filtered;
   }, [posts, postSearch, postCategoryFilter]);
 
@@ -349,17 +362,34 @@ export default function ModeratorDashboard({ userData, session }) {
   }, [financeSearch, financeCategoryFilter]);
 
   const navigationItems = [
-    { id: "forReview", icon: Clock, label: "Pending Applications", color: "amber" },
+    {
+      id: "forReview",
+      icon: Clock,
+      label: "Pending Applications",
+      color: "amber",
+    },
     { id: "finances", icon: Database, label: "Ledger & Vault", color: "amber" },
-    { id: "posts", icon: BookOpen, label: "Updates & Dispatches", color: "emerald" },
+    {
+      id: "posts",
+      icon: BookOpen,
+      label: "Updates & Dispatches",
+      color: "emerald",
+    },
   ];
 
-  if (loading && members.length === 0 && finances.length === 0 && posts.length === 0) {
+  if (
+    loading &&
+    members.length === 0 &&
+    finances.length === 0 &&
+    posts.length === 0
+  ) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent mx-auto mb-3"></div>
-          <p className="text-slate-500 text-sm">Loading moderator dashboard...</p>
+          <p className="text-slate-500 text-sm">
+            Loading moderator dashboard...
+          </p>
         </div>
       </div>
     );
@@ -368,12 +398,16 @@ export default function ModeratorDashboard({ userData, session }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* LEFT SIDEBAR NAVIGATION */}
-      <div className={`${sidebarCollapsed ? "w-20" : "w-64"} shrink-0 bg-white border-r border-slate-200 flex flex-col fixed h-full z-30 transition-all duration-300`}>
+      <div
+        className={`${sidebarCollapsed ? "w-20" : "w-64"} shrink-0 bg-white border-r border-slate-200 flex flex-col fixed h-full z-30 transition-all duration-300`}
+      >
         <div className="flex-1 py-6 px-4">
           <div className="space-y-1">
             {/* Menu Console Header */}
             <div className="pb-3 mb-3 border-b border-slate-100 px-2 flex items-center justify-between">
-              <span className={`text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider ${sidebarCollapsed ? "hidden" : "block"}`}>
+              <span
+                className={`text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider ${sidebarCollapsed ? "hidden" : "block"}`}
+              >
                 Menu Console
               </span>
               <button
@@ -395,8 +429,12 @@ export default function ModeratorDashboard({ userData, session }) {
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <item.icon className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === item.id ? "text-white" : "text-slate-400"}`} />
-                <span className={`flex-1 text-left ${sidebarCollapsed ? "hidden" : "block"}`}>
+                <item.icon
+                  className={`h-4.5 w-4.5 transition-transform group-hover:scale-110 ${activeTab === item.id ? "text-white" : "text-slate-400"}`}
+                />
+                <span
+                  className={`flex-1 text-left ${sidebarCollapsed ? "hidden" : "block"}`}
+                >
                   {item.label}
                 </span>
                 {activeTab === item.id && (
@@ -416,11 +454,15 @@ export default function ModeratorDashboard({ userData, session }) {
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className={`text-[9px] font-mono font-bold uppercase tracking-wider text-indigo-700 ${sidebarCollapsed ? "hidden" : "block"}`}>
+                <span
+                  className={`text-[9px] font-mono font-bold uppercase tracking-wider text-indigo-700 ${sidebarCollapsed ? "hidden" : "block"}`}
+                >
                   Moderator Access
                 </span>
               </div>
-              <p className={`text-[9px] text-slate-500 leading-tight ${sidebarCollapsed ? "hidden" : "block"}`}>
+              <p
+                className={`text-[9px] text-slate-500 leading-tight ${sidebarCollapsed ? "hidden" : "block"}`}
+              >
                 Review and moderate member applications.
               </p>
             </div>
@@ -429,7 +471,9 @@ export default function ModeratorDashboard({ userData, session }) {
       </div>
 
       {/* RIGHT MAIN CONTENT AREA */}
-      <div className={`flex-1 ${sidebarCollapsed ? "ml-20" : "ml-64"} transition-all duration-300`}>
+      <div
+        className={`flex-1 ${sidebarCollapsed ? "ml-20" : "ml-64"} transition-all duration-300`}
+      >
         {/* Success/Error Messages */}
         {successMsg && (
           <div className="mx-6 mt-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
@@ -446,7 +490,6 @@ export default function ModeratorDashboard({ userData, session }) {
 
         {/* Main Content */}
         <main className="p-6">
-          
           {/* PENDING APPLICATIONS TAB */}
           {activeTab === "forReview" && (
             <div className="space-y-6">
@@ -474,7 +517,7 @@ export default function ModeratorDashboard({ userData, session }) {
                           Localized Context:
                         </span>
                         <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">
-                          {userData.churches.name || ""} Extension Only
+                          {userData.churches.name || ""} Church
                         </span>
                       </div>
                     </div>
@@ -485,26 +528,33 @@ export default function ModeratorDashboard({ userData, session }) {
                       </span>
                     </h1>
                     <p className="text-sm text-slate-400 font-sans leading-relaxed max-w-2xl">
-                      Review and moderate member applications submitted by local church secretaries.
+                      Review and moderate member applications submitted by local
+                      church secretaries.
                     </p>
                     <div className="flex flex-wrap gap-4 pt-2">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Pending Review</span>
+                        <span className="text-[10px] text-slate-300">
+                          Pending Review
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center">
                           <Users className="h-3 w-3 text-teal-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Application Management</span>
+                        <span className="text-[10px] text-slate-300">
+                          Application Management
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center">
                           <Shield className="h-3 w-3 text-sky-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Secure Review</span>
+                        <span className="text-[10px] text-slate-300">
+                          Secure Review
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -571,7 +621,9 @@ export default function ModeratorDashboard({ userData, session }) {
                   </div>
                   {searchTerm && (
                     <div className="mt-2 text-xs text-slate-500">
-                      Found {filteredMembers.length} result{filteredMembers.length !== 1 ? "s" : ""} for "{searchTerm}"
+                      Found {filteredMembers.length} result
+                      {filteredMembers.length !== 1 ? "s" : ""} for "
+                      {searchTerm}"
                     </div>
                   )}
                 </div>
@@ -660,12 +712,19 @@ export default function ModeratorDashboard({ userData, session }) {
                             </td>
                             <td className="p-4">
                               {member.formPdfUrl ? (
-                                <a href={member.formPdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800">
+                                <a
+                                  href={member.formPdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                                >
                                   <FileText className="h-4 w-4" />
                                   <span className="text-xs">View</span>
                                 </a>
                               ) : (
-                                <span className="text-slate-400 text-xs">No form</span>
+                                <span className="text-slate-400 text-xs">
+                                  No form
+                                </span>
                               )}
                             </td>
                             <td className="p-4 text-right">
@@ -705,54 +764,73 @@ export default function ModeratorDashboard({ userData, session }) {
                           </span>{" "}
                           to{" "}
                           <span className="font-extrabold text-slate-900">
-                            {Math.min(currentPage * itemsPerPage, filteredMembers.length)}
+                            {Math.min(
+                              currentPage * itemsPerPage,
+                              filteredMembers.length,
+                            )}
                           </span>{" "}
                           of{" "}
                           <span className="font-extrabold text-amber-600">
                             {filteredMembers.length}
                           </span>{" "}
                           applications
-                          {searchTerm && <span className="text-slate-400"> (filtered)</span>}
+                          {searchTerm && (
+                            <span className="text-slate-400"> (filtered)</span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                          }
                           disabled={currentPage === 1}
                           className="relative inline-flex items-center rounded-l-xl px-3 py-2 text-slate-600 border border-slate-200 bg-white hover:bg-amber-50 hover:border-amber-300 focus:z-20 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                         >
                           <ChevronLeft className="h-4 w-4" />
-                          <span className="ml-1 text-xs font-medium hidden sm:inline">Previous</span>
+                          <span className="ml-1 text-xs font-medium hidden sm:inline">
+                            Previous
+                          </span>
                         </button>
-                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) pageNum = i + 1;
-                          else if (currentPage <= 3) pageNum = i + 1;
-                          else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                          else pageNum = currentPage - 2 + i;
-                          return (
-                            <button
-                              key={pageNum}
-                              type="button"
-                              onClick={() => setCurrentPage(pageNum)}
-                              className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                                currentPage === pageNum
-                                  ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-500/25 scale-105"
-                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:border-amber-300"
-                              } cursor-pointer`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
+                        {Array.from(
+                          { length: Math.min(totalPages, 5) },
+                          (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) pageNum = i + 1;
+                            else if (currentPage <= 3) pageNum = i + 1;
+                            else if (currentPage >= totalPages - 2)
+                              pageNum = totalPages - 4 + i;
+                            else pageNum = currentPage - 2 + i;
+                            return (
+                              <button
+                                key={pageNum}
+                                type="button"
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                                  currentPage === pageNum
+                                    ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-500/25 scale-105"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:border-amber-300"
+                                } cursor-pointer`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          },
+                        )}
                         <button
                           type="button"
-                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(prev + 1, totalPages),
+                            )
+                          }
                           disabled={currentPage === totalPages}
                           className="relative inline-flex items-center rounded-r-xl px-3 py-2 text-slate-600 border border-slate-200 bg-white hover:bg-amber-50 hover:border-amber-300 focus:z-20 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                         >
-                          <span className="mr-1 text-xs font-medium hidden sm:inline">Next</span>
+                          <span className="mr-1 text-xs font-medium hidden sm:inline">
+                            Next
+                          </span>
                           <ChevronRight className="h-4 w-4" />
                         </button>
                       </div>
@@ -790,7 +868,7 @@ export default function ModeratorDashboard({ userData, session }) {
                           Localized Context:
                         </span>
                         <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">
-                          {userData.churches.name || ""} Extension
+                          {userData.churches.name || ""} Church
                         </span>
                       </div>
                     </div>
@@ -801,26 +879,33 @@ export default function ModeratorDashboard({ userData, session }) {
                       </span>
                     </h1>
                     <p className="text-sm text-slate-400 font-sans leading-relaxed max-w-2xl">
-                      View church offerings, donations, and expenses. (Read Only Access)
+                      View church offerings, donations, and expenses. (Read Only
+                      Access)
                     </p>
                     <div className="flex flex-wrap gap-4 pt-2">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Real-time Sync</span>
+                        <span className="text-[10px] text-slate-300">
+                          Real-time Sync
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center">
                           <Shield className="h-3 w-3 text-sky-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Audit Logged</span>
+                        <span className="text-[10px] text-slate-300">
+                          Audit Logged
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
                           <FileText className="h-3 w-3 text-amber-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Compliant Receipts</span>
+                        <span className="text-[10px] text-slate-300">
+                          Compliant Receipts
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -833,7 +918,9 @@ export default function ModeratorDashboard({ userData, session }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-slate-500">Offerings</p>
-                      <p className="text-2xl font-bold text-emerald-600">₱{stats.totalOfferings.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        ₱{stats.totalOfferings.toLocaleString()}
+                      </p>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
                       <ArrowUpRight className="h-5 w-5 text-emerald-600" />
@@ -844,7 +931,9 @@ export default function ModeratorDashboard({ userData, session }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-slate-500">Donations</p>
-                      <p className="text-2xl font-bold text-indigo-600">₱{stats.totalDonations.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-indigo-600">
+                        ₱{stats.totalDonations.toLocaleString()}
+                      </p>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
                       <Sparkles className="h-5 w-5 text-indigo-600" />
@@ -855,7 +944,9 @@ export default function ModeratorDashboard({ userData, session }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-slate-500">Expenses</p>
-                      <p className="text-2xl font-bold text-rose-600">₱{stats.totalExpenses.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-rose-600">
+                        ₱{stats.totalExpenses.toLocaleString()}
+                      </p>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center">
                       <ArrowDownRight className="h-5 w-5 text-rose-600" />
@@ -866,7 +957,9 @@ export default function ModeratorDashboard({ userData, session }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-slate-400">Net Balance</p>
-                      <p className="text-2xl font-bold text-emerald-400">₱{vaultTotal.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-emerald-400">
+                        ₱{vaultTotal.toLocaleString()}
+                      </p>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-indigo-900 flex items-center justify-center">
                       <Landmark className="h-5 w-5 text-indigo-400" />
@@ -901,7 +994,9 @@ export default function ModeratorDashboard({ userData, session }) {
                 </div>
                 {financeSearch && (
                   <div className="mt-2 text-xs text-slate-500">
-                    Found {filteredFinances.length} result{filteredFinances.length !== 1 ? "s" : ""} for "{financeSearch}"
+                    Found {filteredFinances.length} result
+                    {filteredFinances.length !== 1 ? "s" : ""} for "
+                    {financeSearch}"
                   </div>
                 )}
               </div>
@@ -918,33 +1013,51 @@ export default function ModeratorDashboard({ userData, session }) {
                         <th className="p-3 text-left">Description</th>
                         <th className="p-3 text-left">Contributor</th>
                         <th className="p-3 text-right">Amount</th>
-                       </tr>
+                      </tr>
                     </thead>
                     <tbody className="divide-y">
                       {paginatedFinances.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="p-8 text-center text-slate-400">
-                            {financeSearch ? `No transactions found for "${financeSearch}"` : "No transactions found"}
+                          <td
+                            colSpan="6"
+                            className="p-8 text-center text-slate-400"
+                          >
+                            {financeSearch
+                              ? `No transactions found for "${financeSearch}"`
+                              : "No transactions found"}
                           </td>
                         </tr>
                       ) : (
                         paginatedFinances.map((finance) => (
                           <tr key={finance.id} className="hover:bg-slate-50">
-                            <td className="p-3 font-mono text-xs">{finance.receiptNumber}</td>
+                            <td className="p-3 font-mono text-xs">
+                              {finance.receiptNumber}
+                            </td>
                             <td className="p-3">{finance.date}</td>
                             <td className="p-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                finance.transType === "Offering" ? "bg-emerald-100 text-emerald-700" :
-                                finance.transType === "Donation" ? "bg-indigo-100 text-indigo-700" :
-                                "bg-rose-100 text-rose-700"
-                              }`}>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  finance.transType === "Offering"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : finance.transType === "Donation"
+                                      ? "bg-indigo-100 text-indigo-700"
+                                      : "bg-rose-100 text-rose-700"
+                                }`}
+                              >
                                 {finance.transType}
                               </span>
                             </td>
-                            <td className="p-3 max-w-xs truncate">{finance.description}</td>
-                            <td className="p-3">{finance.contributorName || "-"}</td>
-                            <td className={`p-3 text-right font-semibold ${finance.amount < 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                              {finance.amount < 0 ? "-" : "+"}₱{Math.abs(finance.amount).toLocaleString()}
+                            <td className="p-3 max-w-xs truncate">
+                              {finance.description}
+                            </td>
+                            <td className="p-3">
+                              {finance.contributorName || "-"}
+                            </td>
+                            <td
+                              className={`p-3 text-right font-semibold ${finance.amount < 0 ? "text-rose-600" : "text-emerald-600"}`}
+                            >
+                              {finance.amount < 0 ? "-" : "+"}₱
+                              {Math.abs(finance.amount).toLocaleString()}
                             </td>
                           </tr>
                         ))
@@ -957,18 +1070,34 @@ export default function ModeratorDashboard({ userData, session }) {
                 {financeTotalPages > 1 && (
                   <div className="border-t border-slate-200 px-4 py-3 flex justify-between items-center">
                     <p className="text-xs text-slate-500">
-                      Showing {Math.min(filteredFinances.length, (financeCurrentPage - 1) * financesPerPage + 1)} - {Math.min(financeCurrentPage * financesPerPage, filteredFinances.length)} of {filteredFinances.length}
+                      Showing{" "}
+                      {Math.min(
+                        filteredFinances.length,
+                        (financeCurrentPage - 1) * financesPerPage + 1,
+                      )}{" "}
+                      -{" "}
+                      {Math.min(
+                        financeCurrentPage * financesPerPage,
+                        filteredFinances.length,
+                      )}{" "}
+                      of {filteredFinances.length}
                     </p>
                     <div className="flex gap-1">
                       <button
-                        onClick={() => setFinanceCurrentPage(p => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setFinanceCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={financeCurrentPage === 1}
                         className="p-2 border rounded-lg disabled:opacity-50"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => setFinanceCurrentPage(p => Math.min(financeTotalPages, p + 1))}
+                        onClick={() =>
+                          setFinanceCurrentPage((p) =>
+                            Math.min(financeTotalPages, p + 1),
+                          )
+                        }
                         disabled={financeCurrentPage === financeTotalPages}
                         className="p-2 border rounded-lg disabled:opacity-50"
                       >
@@ -1008,7 +1137,7 @@ export default function ModeratorDashboard({ userData, session }) {
                           Localized Context:
                         </span>
                         <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                          {userData.churches.name || ""} Extension
+                          {userData.churches.name || ""} Church
                         </span>
                       </div>
                     </div>
@@ -1019,26 +1148,33 @@ export default function ModeratorDashboard({ userData, session }) {
                       </span>
                     </h1>
                     <p className="text-sm text-slate-400 font-sans leading-relaxed max-w-2xl">
-                      View community announcements and news updates. (Read Only Access)
+                      View community announcements and news updates. (Read Only
+                      Access)
                     </p>
                     <div className="flex flex-wrap gap-4 pt-2">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Live Updates</span>
+                        <span className="text-[10px] text-slate-300">
+                          Live Updates
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center">
                           <Newspaper className="h-3 w-3 text-teal-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Church News</span>
+                        <span className="text-[10px] text-slate-300">
+                          Church News
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center">
                           <Shield className="h-3 w-3 text-sky-400" />
                         </div>
-                        <span className="text-[10px] text-slate-300">Secure Access</span>
+                        <span className="text-[10px] text-slate-300">
+                          Secure Access
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1073,7 +1209,8 @@ export default function ModeratorDashboard({ userData, session }) {
                 </div>
                 {postSearch && (
                   <div className="mt-2 text-xs text-slate-500">
-                    Found {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""} for "{postSearch}"
+                    Found {filteredPosts.length} result
+                    {filteredPosts.length !== 1 ? "s" : ""} for "{postSearch}"
                   </div>
                 )}
               </div>
@@ -1082,31 +1219,49 @@ export default function ModeratorDashboard({ userData, session }) {
               <div className="grid grid-cols-1 gap-4">
                 {filteredPosts.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
-                    {postSearch ? `No posts found for "${postSearch}"` : "No posts found"}
+                    {postSearch
+                      ? `No posts found for "${postSearch}"`
+                      : "No posts found"}
                   </div>
                 ) : (
                   filteredPosts.map((post) => (
-                    <div key={post.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition">
+                    <div
+                      key={post.id}
+                      className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              post.category === "urgent" ? "bg-rose-100 text-rose-700" :
-                              post.category === "featured" ? "bg-amber-100 text-amber-700" :
-                              "bg-indigo-100 text-indigo-700"
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                post.category === "urgent"
+                                  ? "bg-rose-100 text-rose-700"
+                                  : post.category === "featured"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-indigo-100 text-indigo-700"
+                              }`}
+                            >
                               {post.category}
                             </span>
                             <span className="text-xs text-slate-400">
                               {new Date(post.created_at).toLocaleDateString()}
                             </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${post.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${post.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                            >
                               {post.active ? "Published" : "Draft"}
                             </span>
                           </div>
-                          <h3 className="font-bold text-slate-900">{post.title}</h3>
-                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">{post.content}</p>
-                          <p className="text-xs text-slate-400 mt-2">{post.affiliation} • {post.summary?.substring(0, 100)}</p>
+                          <h3 className="font-bold text-slate-900">
+                            {post.title}
+                          </h3>
+                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">
+                            {post.content}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-2">
+                            {post.affiliation} •{" "}
+                            {post.summary?.substring(0, 100)}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1129,53 +1284,77 @@ export default function ModeratorDashboard({ userData, session }) {
                 </div>
                 <h2 className="text-lg font-bold">Review Application</h2>
               </div>
-              <button onClick={() => setShowReviewModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-                {/* Error Message Display INSIDE Modal */}
-              {errorMsg && (
-                <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                  <span>{errorMsg}</span>
-                  <button 
-                    onClick={() => setErrorMsg("")} 
-                    className="ml-auto text-red-500 hover:text-red-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            
+            {/* Error Message Display INSIDE Modal */}
+            {errorMsg && (
+              <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span>{errorMsg}</span>
+                <button
+                  onClick={() => setErrorMsg("")}
+                  className="ml-auto text-red-500 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             <div className="p-6 space-y-4">
               {/* Applicant Information */}
               <div className="bg-slate-50 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-3">Applicant Information</h3>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3">
+                  Applicant Information
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-slate-500">Full Name</p>
-                    <p className="text-sm font-medium text-slate-800">{selectedMember.firstName} {selectedMember.lastName}</p>
+                    <p className="text-sm font-medium text-slate-800">
+                      {selectedMember.firstName} {selectedMember.middleName}{" "}
+                      {selectedMember.lastName}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Email</p>
-                    <p className="text-sm text-slate-700">{selectedMember.emailAdd}</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedMember.emailAdd}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Phone</p>
-                    <p className="text-sm text-slate-700">{selectedMember.phoneNumber}</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedMember.phoneNumber}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Birth Date</p>
-                    <p className="text-sm text-slate-700">{selectedMember.birthDate}</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedMember.birthDate}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Baptised Date</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedMember.baptisedDate}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Church</p>
-                    <p className="text-sm text-slate-700">{selectedMember.churchName}</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedMember.churchName}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Submitted</p>
-                    <p className="text-sm text-slate-700">{new Date(selectedMember.created_at).toLocaleString()}</p>
+                    <p className="text-sm text-slate-700">
+                      {new Date(selectedMember.created_at).toLocaleString()}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1183,11 +1362,13 @@ export default function ModeratorDashboard({ userData, session }) {
               {/* Application Form PDF */}
               {selectedMember.formPdfUrl && (
                 <div className="bg-slate-50 rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-slate-800 mb-2">Application Form</h3>
-                  <a 
-                    href={selectedMember.formPdfUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                    Application Form
+                  </h3>
+                  <a
+                    href={selectedMember.formPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition"
                   >
                     <FileText className="h-4 w-4" />
@@ -1200,14 +1381,20 @@ export default function ModeratorDashboard({ userData, session }) {
               {/* Notes */}
               {selectedMember.notes && (
                 <div className="bg-slate-50 rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-slate-800 mb-2">Additional Notes</h3>
-                  <p className="text-sm text-slate-600">{selectedMember.notes}</p>
+                  <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                    Additional Notes
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    {selectedMember.notes}
+                  </p>
                 </div>
               )}
 
               {/* Review Notes */}
               <div className="bg-slate-50 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-2">Review Notes</h3>
+                <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                  Review Notes
+                </h3>
                 <textarea
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
