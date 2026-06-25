@@ -7,7 +7,7 @@ import SuccessMessage from "./Shared/SuccessMessage";
 import ErrorMessage from "./Shared/ErrorMessage";
 import PrintableIDCard from "./Shared/PrintableIDCard";
 import PrintableBaptismalCertificate from "./Shared/PrintableBaptismalCertificate";
-import SecretarySidebar from "./Secretary/SecretarySidebar";
+import CollapsibleSidebar from "./Shared/CollapsibleSidebar";
 import MemberSearchBar from "./Secretary/MemberSearchBar";
 import MemberFilters from "./Secretary/MemberFilters";
 import PaginationControls from "./Secretary/PaginationControls";
@@ -1036,6 +1036,21 @@ export default function SecretaryDashBoard({ userData, session }) {
   };
 
   // ============================================================
+  // NAVIGATION ITEMS
+  // ============================================================
+
+  const navigationItems = [
+    { id: "registry", icon: Users, label: "Member Registry", color: "sky" },
+    { id: "scheduler", icon: Calendar, label: "Scheduler", color: "emerald" },
+    {
+      id: "meetingNotes",
+      icon: NotebookPen,
+      label: "Meeting Notes",
+      color: "amber",
+    },
+  ];
+
+  // ============================================================
   // RENDER
   // ============================================================
   if (isDataLoading) {
@@ -1044,17 +1059,18 @@ export default function SecretaryDashBoard({ userData, session }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <SecretarySidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        churchName={userData?.churches?.name}
-        sidebarCollapsed={sidebarCollapsed}
-        setSidebarCollapsed={setSidebarCollapsed}
+      <CollapsibleSidebar
+        title="Clerk Console"
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+        activeItem={activeTab}
+        onSelect={setActiveTab}
+        items={navigationItems}
+        footerTitle="Clerk Access"
+        footerText={`Authorized to manage ${userData?.churches?.name || "your"} members.`}
       />
 
-      <div
-        className={`flex-1 ${sidebarCollapsed ? "ml-20" : "ml-64"} transition-all duration-300`}
-      >
+      <div className={`flex-1 transition-all duration-300`}>
         <SuccessMessage
           message={successMemo}
           onDismiss={() => setSuccessMemo("")}

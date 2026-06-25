@@ -59,6 +59,7 @@ import {
   Home,
   Mic,
   LayoutDashboard,
+  Menu, // Add this icon
 } from "lucide-react";
 
 export default function App() {
@@ -84,6 +85,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [successMemo, setSuccessMemo] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Add mobile menu state
 
   // Interactive Ministry Picker State (homepage ministry feature)
   const [selectedMinistryKey, setSelectedMinistryKey] = useState("Youth");
@@ -354,9 +356,9 @@ export default function App() {
   useEffect(() => {
     const fetchUser = async () => {
       const userData = await getUserData();
-      console.log("useEffect fetched Role");
+      //console.log("useEffect fetched Role");
       if (userData && userData.role) {
-        console.log("Setting user role in useEffect:", userData.role);
+        //console.log("Setting user role in useEffect:", userData.role);
         setUserRole(userData.role);
       }
     };
@@ -385,6 +387,15 @@ export default function App() {
     }
   }, [location.pathname, authChecked, isRoutingInitialized]);
 
+  // Redirect unauthenticated users away from protected views
+  useEffect(() => {
+    if (!authChecked) return;
+    if (!session && (activeMenu === "Dashboard" || activeMenu === "Profile")) {
+      setActiveMenu("Home");
+      setShowLoginModal(true);
+    }
+  }, [authChecked, activeMenu, session]);
+
   // Update URL when menu changes (but only for non-Home)
   useEffect(() => {
     if (!isRoutingInitialized) return;
@@ -412,14 +423,14 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("showLogin") === "true") {
-      setShowLoginModal(true);
-      // Clean up URL without page refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+  // useEffect(() => {
+  //   const urlParams = new URLSearchParams(window.location.search);
+  //   if (urlParams.get("showLogin") === "true") {
+  //     setShowLoginModal(true);
+  //     // Clean up URL without page refresh
+  //     window.history.replaceState({}, document.title, window.location.pathname);
+  //   }
+  // }, []);
 
   //prevent accessing reset-password with invalid tokens
   useEffect(() => {
@@ -469,7 +480,10 @@ export default function App() {
             {/* Left Branded Logo - Premium Design */}
             <div
               className="flex items-center gap-3 cursor-pointer group"
-              onClick={() => setActiveMenu("Home")}
+              onClick={() => {
+                setActiveMenu("Home");
+                setIsMobileMenuOpen(false);
+              }}
             >
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
@@ -489,7 +503,16 @@ export default function App() {
                   Christian Church Ministry Inc.
                 </span>
                 <span className="block text-[7px] font-mono tracking-widest text-indigo-600 font-black uppercase leading-none mt-0.5">
-                  Church Portal • Est. 1611
+                  Church Portal
+                </span>
+              </div>
+              {/* Show abbreviated logo on mobile */}
+              <div className="sm:hidden">
+                <span className="block font-sans font-extrabold text-xs tracking-tight text-slate-900 leading-tight">
+                  KJV BCCMI
+                </span>
+                <span className="block text-[6px] font-mono tracking-widest text-indigo-600 font-black uppercase leading-none">
+                  Portal
                 </span>
               </div>
             </div>
@@ -563,11 +586,11 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <LayoutDashboard className="h-4 w-4" />
                     <span>
-                        {userRole === "Admin" && "Admin Desk"}
-                        {userRole === "Moderator" && "Moderator Desk"}
-                        {userRole === "Secretary" && "Secretary Desk"}
-                        {userRole === "Treasurer" && "Treasurer Desk"}
-                        {userRole === "User" && "Member Desk"}
+                      {userRole === "Admin" && "Admin Desk"}
+                      {userRole === "Moderator" && "Moderator Desk"}
+                      {userRole === "Secretary" && "Secretary Desk"}
+                      {userRole === "Treasurer" && "Treasurer Desk"}
+                      {userRole === "User" && "Member Desk"}
                     </span>
                     <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
@@ -580,6 +603,15 @@ export default function App() {
 
             {/* Right User Section - Premium Design */}
             <div className="flex items-center gap-4">
+              {/* Mobile Menu Toggle Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors duration-200 text-slate-600"
+                aria-label="Toggle menu"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+
               {session ? (
                 <div className="relative" id="logged-user-tag-facebook-avatar">
                   <button
@@ -665,6 +697,7 @@ export default function App() {
                           onClick={() => {
                             setActiveMenu("Profile");
                             setShowProfileDropdown(false);
+                            setIsMobileMenuOpen(false);
                           }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold hover:bg-indigo-50 transition-colors duration-200 text-left"
                         >
@@ -688,6 +721,7 @@ export default function App() {
                           onClick={() => {
                             hadleLogOut();
                             setShowProfileDropdown(false);
+                            setIsMobileMenuOpen(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors duration-200"
                           id="dropdown-signout"
@@ -703,17 +737,130 @@ export default function App() {
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowLoginModal(true)}
+                  onClick={() => {
+                    setShowLoginModal(true);
+                    setIsMobileMenuOpen(false);
+                  }}
                   id="login-dialog-trigger"
                   className="group bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                 >
                   <Key className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                  <span>Officer Portal Access</span>
+                  <span className="hidden sm:inline">
+                    Officer Portal Access
+                  </span>
+                  <span className="sm:hidden">Login</span>
                 </button>
               )}
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu - Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg">
+            <div className="max-w-7xl mx-auto px-4 py-3 space-y-1">
+              <button
+                onClick={() => {
+                  setActiveMenu("Home");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                  activeMenu === "Home"
+                    ? "text-indigo-600 bg-indigo-50/80"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                }`}
+              >
+                <Home className="h-5 w-5" />
+                <span>Community Home</span>
+                {activeMenu === "Home" && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveMenu("Sermons");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                  activeMenu === "Sermons"
+                    ? "text-indigo-600 bg-indigo-50/80"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                }`}
+              >
+                <Mic className="h-5 w-5" />
+                <span>Broadcasts & Sermons</span>
+                {activeMenu === "Sermons" && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveMenu("Calendar");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                  activeMenu === "Calendar"
+                    ? "text-indigo-600 bg-indigo-50/80"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                }`}
+              >
+                <Calendar className="h-5 w-5" />
+                <span>Event Registries</span>
+                {activeMenu === "Calendar" && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />
+                )}
+              </button>
+
+              {session && (
+                <button
+                  onClick={() => {
+                    setActiveMenu("Dashboard");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                    activeMenu === "Dashboard"
+                      ? "text-indigo-600 bg-indigo-50/80"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <LayoutDashboard className="h-5 w-5" />
+                  <span>
+                    {userRole === "Admin" && "Admin Desk"}
+                    {userRole === "Moderator" && "Moderator Desk"}
+                    {userRole === "Secretary" && "Secretary Desk"}
+                    {userRole === "Treasurer" && "Treasurer Desk"}
+                    {userRole === "User" && "Member Desk"}
+                  </span>
+                  {activeMenu === "Dashboard" && (
+                    <div className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />
+                  )}
+                </button>
+              )}
+
+              {session && (
+                <button
+                  onClick={() => {
+                    setActiveMenu("Profile");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                    activeMenu === "Profile"
+                      ? "text-indigo-600 bg-indigo-50/80"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <User className="h-5 w-5" />
+                  <span>My Profile</span>
+                  {activeMenu === "Profile" && (
+                    <div className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
       {/* SUCCESS NOTICE TOAST BANNER */}
       {successMemo && (
@@ -1502,7 +1649,7 @@ export default function App() {
                   />
                 )}
                 {userRole === "Moderator" && (
-                  <ModeratorDashboard userData={userData} session={session}/>
+                  <ModeratorDashboard userData={userData} session={session} />
                 )}
 
                 {userRole === "Secretary" && (
@@ -1512,12 +1659,12 @@ export default function App() {
                   <TreaseurerDashBoard userData={userData} session={session} />
                 )}
                 {userRole === "User" && (
-                    <UserDashBoard 
-                      userData={userData} 
-                      session={session} 
-                      onLogout={hadleLogOut}
-                    />
-                  )}
+                  <UserDashBoard
+                    userData={userData}
+                    session={session}
+                    onLogout={hadleLogOut}
+                  />
+                )}
               </div>
             )}
           </div>

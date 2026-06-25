@@ -13,7 +13,7 @@ function App() {
 
   const fetchSession = async () => {
     const curerntSession = await supabase.auth.getSession();
-    console.log("Current Session:", curerntSession);
+    //console.log("Current Session:", curerntSession);
     setSession(curerntSession.data.session);
   };
 
@@ -22,7 +22,7 @@ function App() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log("Auth Event:", event, "Session:", session);
+        //console.log("Auth Event:", event, "Session:", session);
         setSession(session);
       },
     );
