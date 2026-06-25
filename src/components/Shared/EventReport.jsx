@@ -1,4 +1,3 @@
-// components/shared/EventReport.jsx
 import React from "react";
 
 const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
@@ -21,6 +20,17 @@ const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
   const topContributors = incomeTransactions
     .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
     .slice(0, 5);
+
+  // Get top expenses for chart
+  const topExpenses = expenseTransactions
+    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+    .slice(0, 6);
+
+  // Find the maximum amount for both income and expenses to scale the chart
+  const allAmounts = [...incomeTransactions, ...expenseTransactions].map((t) =>
+    Math.abs(t.amount),
+  );
+  const maxAmount = allAmounts.length > 0 ? Math.max(...allAmounts, 1) : 1;
 
   const reportHTML = `
 <!DOCTYPE html>
@@ -249,8 +259,9 @@ const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
       display: flex;
       align-items: flex-end;
       gap: 12px;
-      height: 120px;
+      height: 160px;
       padding: 0 4px;
+      margin-bottom: 12px;
     }
     .chart-bar-wrapper {
       flex: 1;
@@ -288,6 +299,31 @@ const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
       font-size: 10px;
       font-weight: 600;
       color: #2d3748;
+    }
+    .chart-legend {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #718096;
+    }
+    .chart-legend .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chart-legend .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+    }
+    .chart-legend .legend-dot.income-dot {
+      background: #10b981;
+    }
+    .chart-legend .legend-dot.expense-dot {
+      background: #ef4444;
     }
     /* Transactions Table */
     .transactions-section h3 {
@@ -406,6 +442,7 @@ const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
       .body { padding: 20px; }
       .insights-grid { grid-template-columns: 1fr; }
       .footer { flex-direction: column; text-align: center; padding: 20px; }
+      .chart-bars { height: 120px; }
     }
     @media print {
       .no-print { display: none !important; }
@@ -526,29 +563,51 @@ const EventReport = ({ event, eventTransactions, eventStats, churchName }) => {
         </div>
       </div>
 
-      <!-- Chart Section -->
+      <!-- Chart Section - Now includes BOTH Income and Expenses -->
       <div class="chart-section">
-        <h3>📈 Transaction Distribution</h3>
+        <h3>📈 Income vs Expense Distribution</h3>
         <div class="chart-bars">
+          <!-- Show Top Income Contributors -->
           ${incomeTransactions.slice(0, 6).map((t) => {
-            const maxAmount = Math.max(
-              ...incomeTransactions.map((t) => Math.abs(t.amount)),
-              1,
-            );
             const height = (Math.abs(t.amount) / maxAmount) * 100;
             return `
               <div class="chart-bar-wrapper">
-                <div class="chart-bar-value">₱${Math.abs(t.amount).toLocaleString()}</div>
+                <div class="chart-bar-value" style="color: #10b981;">₱${Math.abs(t.amount).toLocaleString()}</div>
                 <div class="chart-bar income" style="height: ${Math.max(height, 10)}%;"></div>
-                <div class="chart-bar-label">${t.contributorName?.split(" ")[0] || "Donor"}</div>
+                <div class="chart-bar-label" style="color: #10b981; font-weight: 600;">${t.contributorName?.split(" ")[0] || "Donor"}</div>
               </div>
             `;
           })}
-          ${incomeTransactions.length === 0 ? '<div style="color: #718096; padding: 20px; text-align: center; width: 100%;">No income data available</div>' : ""}
+          
+          <!-- Show Top Expenses -->
+          ${topExpenses.slice(0, 6).map((t) => {
+            const height = (Math.abs(t.amount) / maxAmount) * 100;
+            return `
+              <div class="chart-bar-wrapper">
+                <div class="chart-bar-value" style="color: #ef4444;">₱${Math.abs(t.amount).toLocaleString()}</div>
+                <div class="chart-bar expense" style="height: ${Math.max(height, 10)}%;"></div>
+                <div class="chart-bar-label" style="color: #ef4444; font-weight: 600;">${t.description?.split(" ")[0] || "Expense"}</div>
+              </div>
+            `;
+          })}
+          
+          ${
+            incomeTransactions.length === 0 && expenseTransactions.length === 0
+              ? '<div style="color: #718096; padding: 20px; text-align: center; width: 100%;">No transaction data available</div>'
+              : ""
+          }
         </div>
-        <div style="margin-top: 12px; display: flex; gap: 20px; justify-content: center; font-size: 12px; color: #718096;">
-          <span>🟢 Income Contributions</span>
-          <span>🔴 Expense Items</span>
+        
+        <!-- Legend -->
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-dot income-dot"></div>
+            <span>Income (Top ${Math.min(incomeTransactions.length, 6)})</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot expense-dot"></div>
+            <span>Expenses (Top ${Math.min(expenseTransactions.length, 6)})</span>
+          </div>
         </div>
       </div>
 
