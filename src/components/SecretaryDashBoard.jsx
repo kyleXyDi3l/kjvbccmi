@@ -429,6 +429,29 @@ export default function SecretaryDashBoard({ userData, session }) {
     return publicUrl;
   };
 
+  const uploadImage = async (file, memberId) => {
+    // Organize files by memberId
+    const filePath = `${memberId}-${file.name}-${Date.now()}`;
+
+    // Upload
+    const { error } = await supabase.storage
+      .from("members-pic")
+      .upload(filePath, file);
+
+    if (error) {
+      console.log("Error uploading Image:", error.message);
+      return null;
+    }
+
+    // Get public URL
+    const { data } = await supabase.storage
+      .from("members-pic")
+      .getPublicUrl(filePath);
+
+    // Return both path and URL
+    return { path: filePath, url: data.publicUrl };
+  };
+
   // Handle PDF file selection
   const handlePdfChange = (e) => {
     const file = e.target.files?.[0];
@@ -486,6 +509,7 @@ export default function SecretaryDashBoard({ userData, session }) {
       baptisedDate: data.baptisedDate,
       signature_url: data.signature_url,
       created_at: data.created_at,
+      profilePicPath: data.profilePicPath,
     };
   };
 
@@ -527,7 +551,9 @@ export default function SecretaryDashBoard({ userData, session }) {
         baptisedDate: m.baptisedDate,
         signature_url: m.signature_url,
         created_at: m.created_at,
+        profilePicPath: m.profilePicPath,
       }));
+      //console.log("transformed", transformed);
       setMembers(transformed);
     }
     setIsDataLoading(false);
@@ -721,6 +747,7 @@ export default function SecretaryDashBoard({ userData, session }) {
   const confirmDeleteMember = async () => {
     if (!memberToDelete) return;
     setIsDeleting(true);
+
     try {
       // Delete PDF
       if (memberToDelete.formPdfUrl) {
@@ -738,6 +765,14 @@ export default function SecretaryDashBoard({ userData, session }) {
             .from("member-signatures")
             .remove([`member-signatures/${path}`]);
       }
+
+      // Delete Profile Image from members-pic bucket
+      if (memberToDelete.profilePicPath) {
+        await supabase.storage
+          .from("members-pic")
+          .remove([memberToDelete.profilePicPath]);
+      }
+
       // Delete record
       const { error } = await supabase
         .from("members")
@@ -823,6 +858,7 @@ export default function SecretaryDashBoard({ userData, session }) {
       statusId: newMember.statusId,
       churchID: userData.churches.id,
       createdBy: session.user.id,
+      profilePicPath: newMember.profilePicPath,
     };
 
     // --- VALIDATION ---
@@ -844,15 +880,21 @@ export default function SecretaryDashBoard({ userData, session }) {
     let profileImgUrl = newMember.profilePic;
     let pdfUrl = newMember.formPdfUrl;
     let signatureUrl = newMember.signature_url;
+    let profileImgPath = newMember.profilePicPath;
 
     try {
       // Upload profile image if new file selected
       if (photoFile) {
-        profileImgUrl = await uploadImage(photoFile);
-        if (!profileImgUrl) {
+        const uploaded = await uploadImage(
+          photoFile,
+          editingMember?.id || `temp_${Date.now()}`,
+        );
+        if (!uploaded) {
           setErrorMemo("Failed to upload profile image");
           return;
         }
+        profileImgUrl = uploaded.url; // for display
+        profileImgPath = uploaded.path; // for deletion later
       }
 
       // Upload PDF if new file selected
@@ -901,6 +943,7 @@ export default function SecretaryDashBoard({ userData, session }) {
         signature_url: signatureUrl,
         statusId: newMember.statusId,
         churchID: userData.churches.id,
+        profilePicPath: profileImgPath,
       };
 
       // Save to database
@@ -962,10 +1005,6 @@ export default function SecretaryDashBoard({ userData, session }) {
       reader.onloadend = () => {
         if (typeof reader.result === "string") {
           setNewMember({ ...newMember, profilePic: reader.result });
-          setSuccessMemo(
-            'Custom profile picture uploaded. Click "Save Profile Changes" below to sync.',
-          );
-          setTimeout(() => setSuccessMemo(""), 5000);
         }
       };
       reader.readAsDataURL(file);
