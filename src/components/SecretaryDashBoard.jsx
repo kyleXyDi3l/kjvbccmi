@@ -1882,7 +1882,7 @@ export default function SecretaryDashBoard({ userData, session }) {
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
                   <FileText className="h-3.5 w-3.5" />
-                  Notes / Favorite Verse
+                  Notes / Date Saved
                 </label>
                 <textarea
                   value={newMember.notes}
