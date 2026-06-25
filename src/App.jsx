@@ -232,7 +232,7 @@ export default function App() {
       return;
     }
     setPosts(data);
-    console.log("Fetched posts:", data);
+    //console.log("Fetched posts:", data);
   };
 
   useEffect(() => {
@@ -291,7 +291,7 @@ export default function App() {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    console.log("Current Session:", session);
+    //console.log("Current Session:", session);
     setSession(session);
 
     if (session) {
@@ -326,7 +326,7 @@ export default function App() {
     }
 
     setUserProfileState(userData);
-    console.log("User Data: ", userData);
+    //console.log("User Data: ", userData);
     return userData;
   };
 
@@ -335,7 +335,7 @@ export default function App() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("Auth Event:", event, "Session:", session);
+        //console.log("Auth Event:", event, "Session:", session);
         setSession(session);
 
         if (session) {
@@ -500,7 +500,7 @@ export default function App() {
                   King James Version Bible
                 </span>
                 <span className="block font-sans font-extrabold text-sm tracking-tight text-slate-900 leading-tight">
-                  Christian Church Ministry Inc.
+                  Christian Church Ministries Inc.
                 </span>
                 <span className="block text-[7px] font-mono tracking-widest text-indigo-600 font-black uppercase leading-none mt-0.5">
                   Church Portal
