@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../supabase-client";
 import CollapsibleSidebar from "./Shared/CollapsibleSidebar";
+import DeleteConfirmationModal from "./Secretary/DeleteConfirmationModal";
 
 export default function AdminDashboard({ userData, session }) {
   const [activeTab, setActiveTab] = useState("members");
@@ -65,6 +66,12 @@ export default function AdminDashboard({ userData, session }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [churchFilter, setChurchFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Delete Modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const itemsPerPage = 8;
 
   // Pending Approvals State
@@ -392,6 +399,70 @@ export default function AdminDashboard({ userData, session }) {
       notes: "",
       profilePic: "",
     });
+  };
+
+  const openDeleteModal = (member) => {
+    if (![9, 13].includes(member.statusId)) {
+      setErrorMsg(`Cannot delete member with status: ${member.status}.`);
+      setTimeout(() => setErrorMsg(""), 3000);
+      return;
+    }
+    setMemberToDelete(member);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteMember = async () => {
+    if (!memberToDelete) return;
+    setIsDeleting(true);
+    // console.log(memberToDelete);
+    // return;
+    try {
+      // Delete PDF
+      if (memberToDelete.formPdfUrl) {
+        const path = memberToDelete.formPdfUrl.split("/").pop();
+        if (path)
+          await supabase.storage
+            .from("member-forms")
+            .remove([`member-forms/${path}`]);
+      }
+      // Delete Signature
+      if (memberToDelete.signature_url) {
+        const path = memberToDelete.signature_url.split("/").pop();
+        if (path)
+          await supabase.storage
+            .from("member-signatures")
+            .remove([`member-signatures/${path}`]);
+      }
+
+      // Delete Profile Image from members-pic bucket
+      if (memberToDelete.profilePicPath) {
+        const path = memberToDelete.profilePicPath.split("/").pop();
+        if (path)
+          await supabase.storage
+            .from("member-pics")
+            .remove([`member-pics/${path}`]);
+      }
+
+      // Delete record
+      const { error } = await supabase
+        .from("members")
+        .delete()
+        .eq("id", memberToDelete.id);
+      if (error) throw error;
+      setSuccessMsg(
+        `${memberToDelete.firstName} ${memberToDelete.lastName} deleted successfully.`,
+      );
+      fetchMembers();
+    } catch (error) {
+      setErrorMsg("Failed to delete member.", error);
+    }
+    setIsDeleting(false);
+    setShowDeleteModal(false);
+    setMemberToDelete(null);
+    setTimeout(() => {
+      setSuccessMsg("");
+      setErrorMsg("");
+    }, 3000);
   };
 
   // ==================== FINANCES CRUD ====================
@@ -1587,7 +1658,7 @@ export default function AdminDashboard({ userData, session }) {
                                   <span>View/Edit</span>
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteMember(member.id)}
+                                  onClick={() => openDeleteModal(member)}
                                   className="p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg transition cursor-pointer"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -3550,6 +3621,15 @@ export default function AdminDashboard({ userData, session }) {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        member={memberToDelete}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteMember}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }

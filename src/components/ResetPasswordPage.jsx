@@ -19,6 +19,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isValidSession, setIsValidSession] = useState(true);
+  const [redirectCountdown, setRedirectCountdown] = useState(3);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,6 +50,22 @@ export default function ResetPasswordPage() {
     };
     checkSession();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!isValidSession) {
+      const timer = setInterval(() => {
+        setRedirectCountdown((value) => Math.max(value - 1, 0));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+    return undefined;
+  }, [isValidSession]);
+
+  useEffect(() => {
+    if (!isValidSession && redirectCountdown <= 0) {
+      navigate("/", { replace: true });
+    }
+  }, [isValidSession, redirectCountdown, navigate]);
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();

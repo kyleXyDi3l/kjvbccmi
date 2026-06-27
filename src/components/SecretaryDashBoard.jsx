@@ -214,7 +214,7 @@ export default function SecretaryDashBoard({ userData, session }) {
   const validateMemberData = (memberData, isEditing = false) => {
     const errors = [];
 
-    console.log("memberData:", memberData);
+    //console.log("memberData:", memberData);
 
     // 1. Required Field Validations
     if (!memberData.firstName || memberData.firstName.trim() === "") {
@@ -243,20 +243,29 @@ export default function SecretaryDashBoard({ userData, session }) {
       }
     }
 
-    // if (!memberData.phoneNumber) {
-    //   errors.push("Phone number is required");
-    // } else {
-    //   // Phone number validation (Philippine format)
-    //   const phoneStr = String(memberData.phoneNumber).replace(/\D/g, "");
-    //   if (phoneStr.length !== 11) {
-    //     errors.push(
-    //       "Phone number must be exactly 11 digits (e.g., 09XXXXXXXXX)",
-    //     );
-    //   }
-    //   if (!phoneStr.startsWith("09")) {
-    //     errors.push("Phone number must start with '09'");
-    //   }
-    // }
+    if (!memberData.phoneNumber) {
+      errors.push("Phone number is required");
+    } else {
+      let digits = String(memberData.phoneNumber).replace(/\D/g, "");
+      if (digits.startsWith("639")) digits = "09" + digits.slice(3);
+      if (digits.length > 11) digits = digits.slice(0, 11);
+      //setNewMember({ ...newMember, phoneNumber: digits });
+      const plain = digits.replace(/-/g, "");
+      if (plain.length !== 11 && plain.length > 0) {
+        errors.push("Phone number must be exactly 11 digits.");
+      }
+
+      // // Phone number validation (Philippine format)
+      // const phoneStr = String(memberData.phoneNumber).replace(/\D/g, "");
+      // if (phoneStr.length !== 11) {
+      //   errors.push(
+      //     "Phone number must be exactly 11 digits (e.g., 09XXXXXXXXX)",
+      //   );
+      // }
+      // if (!phoneStr.startsWith("09")) {
+      //   errors.push("Phone number must start with '09'");
+      // }
+    }
 
     if (!memberData.birthDate) {
       errors.push("Date of birth is required");
@@ -431,11 +440,12 @@ export default function SecretaryDashBoard({ userData, session }) {
 
   const uploadImage = async (file, memberId) => {
     // Organize files by memberId
-    const filePath = `${memberId}-${file.name}-${Date.now()}`;
+    const fileName = `${memberId}-${file.name}-${Date.now()}`;
+    const filePath = `member-pics/${fileName}`;
 
     // Upload
     const { error } = await supabase.storage
-      .from("members-pic")
+      .from("member-pics")
       .upload(filePath, file);
 
     if (error) {
@@ -445,7 +455,7 @@ export default function SecretaryDashBoard({ userData, session }) {
 
     // Get public URL
     const { data } = await supabase.storage
-      .from("members-pic")
+      .from("member-pics")
       .getPublicUrl(filePath);
 
     // Return both path and URL
@@ -768,9 +778,11 @@ export default function SecretaryDashBoard({ userData, session }) {
 
       // Delete Profile Image from members-pic bucket
       if (memberToDelete.profilePicPath) {
-        await supabase.storage
-          .from("members-pic")
-          .remove([memberToDelete.profilePicPath]);
+        const path = memberToDelete.profilePicPath.split("/").pop();
+        if (path)
+          await supabase.storage
+            .from("member-pics")
+            .remove([`member-pics/${path}`]);
       }
 
       // Delete record
