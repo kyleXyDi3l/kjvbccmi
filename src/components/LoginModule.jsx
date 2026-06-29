@@ -391,7 +391,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
 
             {/* Toggle between Login and Sign Up */}
             <div className="flex items-center justify-center gap-2 pt-2">
-              <span className="text-xs text-slate-500">
+              {/* <span className="text-xs text-slate-500">
                 {isSignUp
                   ? "Already have an account?"
                   : "Don't have an account?"}
@@ -406,7 +406,7 @@ export default function LoginModule({ onLoginSuccess, onClose }) {
                 className="text-indigo-600 hover:text-indigo-700 text-xs font-bold transition hover:underline"
               >
                 {isSignUp ? "Sign In" : "Create one"}
-              </button>
+              </button> */}
             </div>
           </form>
 

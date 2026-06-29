@@ -1322,11 +1322,10 @@ export default function AdminDashboard({ userData, session }) {
                                 key={pageNum}
                                 type="button"
                                 onClick={() => setApprovalCurrentPage(pageNum)}
-                                className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                                  approvalCurrentPage === pageNum
+                                className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${approvalCurrentPage === pageNum
                                     ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-500/25 scale-105"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:border-amber-300"
-                                } cursor-pointer`}
+                                  } cursor-pointer`}
                               >
                                 {pageNum}
                               </button>
@@ -1609,8 +1608,7 @@ export default function AdminDashboard({ userData, session }) {
                             </td>
                             <td className="p-4">
                               <span
-                                className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                  member.role === "Admin"
+                                className={`px-2 py-1 rounded-full text-xs font-semibold ${member.role === "Admin"
                                     ? "bg-red-100 text-red-700"
                                     : member.role === "Pastor"
                                       ? "bg-indigo-100 text-indigo-700"
@@ -1619,29 +1617,27 @@ export default function AdminDashboard({ userData, session }) {
                                         : member.role === "Treasurer"
                                           ? "bg-emerald-100 text-emerald-700"
                                           : "bg-slate-100 text-slate-700"
-                                }`}
+                                  }`}
                               >
                                 {member.role || "Member"}
                               </span>
                             </td>
                             <td className="p-4">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold font-mono uppercase shadow-sm ${
-                                  member.status === "Active"
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold font-mono uppercase shadow-sm ${member.status === "Active"
                                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                     : member.status === "Inactive"
                                       ? "bg-rose-50 text-rose-700 border border-rose-200"
                                       : "bg-amber-50 text-amber-700 border border-amber-200"
-                                }`}
+                                  }`}
                               >
                                 <span
-                                  className={`h-1.5 w-1.5 rounded-full ${
-                                    member.status === "Active"
+                                  className={`h-1.5 w-1.5 rounded-full ${member.status === "Active"
                                       ? "bg-emerald-500 animate-pulse"
                                       : member.status === "Inactive"
                                         ? "bg-rose-500"
                                         : "bg-amber-500"
-                                  }`}
+                                    }`}
                                 />
                                 {member.status}
                               </span>
@@ -1738,11 +1734,10 @@ export default function AdminDashboard({ userData, session }) {
                                 key={pageNum}
                                 type="button"
                                 onClick={() => setCurrentPage(pageNum)}
-                                className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                                  currentPage === pageNum
+                                className={`relative inline-flex items-center justify-center min-w-[36px] px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${currentPage === pageNum
                                     ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 scale-105"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300"
-                                } cursor-pointer`}
+                                  } cursor-pointer`}
                               >
                                 {pageNum}
                               </button>
@@ -1976,13 +1971,12 @@ export default function AdminDashboard({ userData, session }) {
                             <td className="p-3">{finance.date}</td>
                             <td className="p-3">
                               <span
-                                className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                  finance.transType === "Offering"
+                                className={`px-2 py-1 rounded-full text-xs font-semibold ${finance.transType === "Offering"
                                     ? "bg-emerald-100 text-emerald-700"
                                     : finance.transType === "Donation"
                                       ? "bg-indigo-100 text-indigo-700"
                                       : "bg-rose-100 text-rose-700"
-                                }`}
+                                  }`}
                               >
                                 {finance.transType}
                               </span>
@@ -2206,13 +2200,12 @@ export default function AdminDashboard({ userData, session }) {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                post.category === "urgent"
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${post.category === "urgent"
                                   ? "bg-rose-100 text-rose-700"
                                   : post.category === "featured"
                                     ? "bg-amber-100 text-amber-700"
                                     : "bg-indigo-100 text-indigo-700"
-                              }`}
+                                }`}
                             >
                               {post.category}
                             </span>
@@ -2239,11 +2232,10 @@ export default function AdminDashboard({ userData, session }) {
                         <div className="flex gap-2 ml-4">
                           <button
                             onClick={() => handleTogglePostStatus(post)}
-                            className={`p-2 rounded-lg transition ${
-                              post.active
+                            className={`p-2 rounded-lg transition ${post.active
                                 ? "text-amber-600 hover:bg-amber-50"
                                 : "text-emerald-600 hover:bg-emerald-50"
-                            }`}
+                              }`}
                           >
                             {post.active ? (
                               <X className="h-4 w-4" />
@@ -2284,13 +2276,12 @@ export default function AdminDashboard({ userData, session }) {
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
             {/* Premium Header - Changes based on status */}
             <div
-              className={`relative px-6 py-5 ${
-                viewEditMember.statusId === 12
+              className={`relative px-6 py-5 ${viewEditMember.statusId === 12
                   ? "bg-gradient-to-r from-amber-600 to-orange-600"
                   : isViewMode
                     ? "bg-gradient-to-r from-indigo-600 to-purple-600"
                     : "bg-gradient-to-r from-emerald-600 to-teal-600"
-              }`}
+                }`}
             >
               {/* Decorative Elements */}
               <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -2396,26 +2387,24 @@ export default function AdminDashboard({ userData, session }) {
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase shadow-sm ${
-                          viewEditMember.statusId === 12
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase shadow-sm ${viewEditMember.statusId === 12
                             ? "bg-amber-100 text-amber-700 border border-amber-200"
                             : viewEditMember.status === "Active"
                               ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
                               : viewEditMember.status === "Inactive"
                                 ? "bg-rose-100 text-rose-700 border border-rose-200"
                                 : "bg-amber-100 text-amber-700 border border-amber-200"
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            viewEditMember.statusId === 12
+                          className={`h-1.5 w-1.5 rounded-full ${viewEditMember.statusId === 12
                               ? "bg-amber-500 animate-pulse"
                               : viewEditMember.status === "Active"
                                 ? "bg-emerald-500 animate-pulse"
                                 : viewEditMember.status === "Inactive"
                                   ? "bg-rose-500"
                                   : "bg-amber-500"
-                          }`}
+                            }`}
                         />
                         {viewEditMember.statusId === 12
                           ? "Pending Approval"
@@ -2986,11 +2975,10 @@ export default function AdminDashboard({ userData, session }) {
                   isSubmittingApproval ||
                   (approvalAction === "reject" && !approvalReason.trim())
                 }
-                className={`flex-1 py-2.5 font-bold text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
-                  approvalAction === "approve"
+                className={`flex-1 py-2.5 font-bold text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${approvalAction === "approve"
                     ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg"
                     : "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white shadow-md hover:shadow-lg"
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {isSubmittingApproval ? (
                   <>
